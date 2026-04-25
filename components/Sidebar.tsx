@@ -1,13 +1,18 @@
-type NavItem = { icon: string; label: string; iconColor?: string; active?: boolean };
+"use client";
 
-const SPACE: NavItem[] = [
-  { icon: "⊞", label: "Dashboard" },
-  { icon: "▦", label: "Kanban Board", active: true },
-  { icon: "◫", label: "Calendrier" },
-  { icon: "◈", label: "Analytiques" },
+import type { ViewId } from "@/lib/types";
+
+type SpaceItem = { icon: string; label: string; view: ViewId };
+type PlatformItem = { icon: string; label: string; iconColor: string };
+
+const SPACE: SpaceItem[] = [
+  { icon: "⊞", label: "Dashboard",     view: "dashboard" },
+  { icon: "▦", label: "Kanban Board",  view: "board" },
+  { icon: "◫", label: "Calendrier",    view: "calendar" },
+  { icon: "◈", label: "Analytiques",   view: "analytics" },
 ];
 
-const PLATFORMS: NavItem[] = [
+const PLATFORMS: PlatformItem[] = [
   { icon: "▶", label: "YouTube",   iconColor: "#ff4d4d" },
   { icon: "◉", label: "Instagram", iconColor: "#ff5e8a" },
   { icon: "♫", label: "TikTok",    iconColor: "#5eead4" },
@@ -15,17 +20,23 @@ const PLATFORMS: NavItem[] = [
   { icon: "●", label: "Podcast",   iconColor: "#b599ff" },
 ];
 
-function NavLink({ item }: { item: NavItem }) {
+interface NavLinkProps {
+  icon: string;
+  label: string;
+  active?: boolean;
+  iconColor?: string;
+  onClick?: () => void;
+  onMouseEnter?: () => void;
+}
+
+function NavLink({ icon, label, active, iconColor, onClick, onMouseEnter }: NavLinkProps) {
   const base =
-    "group flex items-center gap-[10px] px-[11px] py-[8px] rounded-[9px] cursor-pointer text-[13px] font-medium transition-all mb-px relative";
-  const state = item.active
-    ? "text-acc"
-    : "text-tm hover:text-t1";
+    "group flex items-center gap-[10px] px-[11px] py-[8px] rounded-[9px] cursor-pointer text-[13px] font-medium transition-all mb-px relative w-full text-left bg-transparent border-none";
+  const state = active ? "text-acc" : "text-tm hover:text-t1";
   return (
-    <div className={`${base} ${state}`}>
-      {item.active && (
+    <button type="button" onClick={onClick} onMouseEnter={onMouseEnter} className={`${base} ${state}`}>
+      {active && (
         <>
-          {/* Active pill — glassy orange wash */}
           <span
             aria-hidden
             className="absolute inset-0 rounded-[9px] bg-acc/[0.08] border border-acc/25"
@@ -34,34 +45,28 @@ function NavLink({ item }: { item: NavItem }) {
           <span aria-hidden className="absolute -left-[10px] top-1/2 -translate-y-1/2 w-[3px] h-[18px] bg-acc rounded-full shadow-glowAcc" />
         </>
       )}
-      {!item.active && (
+      {!active && (
         <span aria-hidden className="absolute inset-0 rounded-[9px] opacity-0 group-hover:opacity-100 bg-white/[0.04] border border-white/[0.06] transition-opacity" />
       )}
       <span
         className="relative w-4 text-center text-[14px] flex-shrink-0"
-        style={item.iconColor ? { color: item.iconColor, filter: `drop-shadow(0 0 6px ${item.iconColor}66)` } : undefined}
+        style={iconColor ? { color: iconColor, filter: `drop-shadow(0 0 6px ${iconColor}66)` } : undefined}
       >
-        {item.icon}
+        {icon}
       </span>
-      <span className="relative">{item.label}</span>
-    </div>
+      <span className="relative">{label}</span>
+    </button>
   );
 }
 
-function NavSection({ title, items }: { title: string; items: NavItem[] }) {
-  return (
-    <>
-      <div className="text-td text-[10px] font-mono font-medium uppercase tracking-[1.4px] px-2 mt-[18px] mb-[6px]">
-        — {title}
-      </div>
-      {items.map((it) => (
-        <NavLink key={it.label} item={it} />
-      ))}
-    </>
-  );
+interface Props {
+  view: ViewId;
+  onView: (v: ViewId) => void;
+  platform: string;
+  onPlatform: (p: string) => void;
 }
 
-export function Sidebar() {
+export function Sidebar({ view, onView, platform, onPlatform }: Props) {
   return (
     <aside
       className="w-[228px] flex flex-col py-[22px] flex-shrink-0 z-10 relative"
@@ -74,7 +79,11 @@ export function Sidebar() {
       }}
     >
       {/* Wordmark */}
-      <div className="px-[18px] pb-7 flex items-center gap-[11px] relative">
+      <button
+        type="button"
+        onClick={() => onView("dashboard")}
+        className="px-[18px] pb-7 flex items-center gap-[11px] relative bg-transparent border-none cursor-pointer text-left"
+      >
         <div
           className="w-[36px] h-[36px] rounded-[10px] flex items-center justify-center text-[16px] text-white font-black flex-shrink-0 relative"
           style={{
@@ -90,15 +99,41 @@ export function Sidebar() {
           </span>
           <span className="text-td text-[9px] font-mono uppercase tracking-[1.6px]">Atelier · v2</span>
         </div>
-      </div>
+      </button>
 
       <nav className="flex-1 px-[10px] overflow-y-auto">
-        <NavSection title="Espace" items={SPACE} />
-        <NavSection title="Plateformes" items={PLATFORMS} />
-        <NavSection title="Système" items={[{ icon: "⚙", label: "Paramètres" }]} />
+        <SectionTitle>Espace</SectionTitle>
+        {SPACE.map((it) => (
+          <NavLink
+            key={it.view}
+            icon={it.icon}
+            label={it.label}
+            active={view === it.view}
+            onClick={() => onView(it.view)}
+          />
+        ))}
+
+        <SectionTitle>Plateformes</SectionTitle>
+        {PLATFORMS.map((it) => {
+          const key = it.label.toLowerCase();
+          const isActive = platform === key;
+          return (
+            <NavLink
+              key={it.label}
+              icon={it.icon}
+              label={it.label}
+              iconColor={it.iconColor}
+              active={isActive}
+              onClick={() => onPlatform(isActive ? "" : key)}
+            />
+          );
+        })}
+
+        <SectionTitle>Système</SectionTitle>
+        <NavLink icon="⚙" label="Paramètres" />
       </nav>
 
-      {/* User card — small glass tile */}
+      {/* User card */}
       <div className="mx-[10px] mt-3 p-[10px] rounded-[10px] glass-soft flex items-center gap-[10px]">
         <div
           className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-white font-bold text-[13px] flex-shrink-0"
@@ -118,5 +153,13 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-td text-[10px] font-mono font-medium uppercase tracking-[1.4px] px-2 mt-[18px] mb-[6px]">
+      — {children}
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Card, ColumnId } from "@/lib/types";
+import type { Card, ColumnId, ViewId } from "@/lib/types";
 import { STORAGE_KEY } from "@/lib/constants";
 import { SAMPLE_CARDS } from "@/lib/sample-data";
 import { Sidebar } from "@/components/Sidebar";
@@ -10,15 +10,16 @@ import { StatsBar } from "@/components/StatsBar";
 import { Board } from "@/components/Board";
 import { CardModal } from "@/components/CardModal";
 import { CursorAurora } from "@/components/CursorAurora";
-
-type Tab = "board" | "list" | "analytics";
+import { Dashboard } from "@/components/Dashboard";
+import { CalendarView } from "@/components/CalendarView";
+import { AnalyticsView } from "@/components/AnalyticsView";
 
 export default function HomePage() {
   const [cards, setCards] = useState<Card[]>(SAMPLE_CARDS);
   const [hydrated, setHydrated] = useState(false);
   const [search, setSearch] = useState("");
   const [platform, setPlatform] = useState("");
-  const [tab, setTab] = useState<Tab>("board");
+  const [view, setView] = useState<ViewId>("board");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Card | null>(null);
@@ -97,28 +98,57 @@ export default function HomePage() {
     <>
       <CursorAurora />
       <div className="relative z-10 h-screen flex overflow-hidden">
-        <Sidebar />
+        <Sidebar
+          view={view}
+          onView={setView}
+          platform={platform}
+          onPlatform={setPlatform}
+        />
         <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <TopBar
-            search={search}
-            onSearch={setSearch}
-            platform={platform}
-            onPlatform={setPlatform}
-            onAdd={() => openAdd("ideas")}
-            tab={tab}
-            onTab={setTab}
-          />
-          <StatsBar cards={cards} />
-          <Board
-            cards={cards}
-            search={search}
-            platform={platform}
-            onAdd={openAdd}
-            onEdit={openEdit}
-            onDelete={handleDelete}
-            onMove={handleMove}
-          />
+          {view === "board" && (
+            <>
+              <TopBar
+                search={search}
+                onSearch={setSearch}
+                platform={platform}
+                onPlatform={setPlatform}
+                onAdd={() => openAdd("ideas")}
+              />
+              <StatsBar cards={cards} />
+              <Board
+                cards={cards}
+                search={search}
+                platform={platform}
+                onAdd={openAdd}
+                onEdit={openEdit}
+                onDelete={handleDelete}
+                onMove={handleMove}
+              />
+            </>
+          )}
+
+          {view === "dashboard" && (
+            <Dashboard
+              cards={cards}
+              onAdd={() => openAdd("ideas")}
+              onEdit={openEdit}
+              onView={setView}
+            />
+          )}
+
+          {view === "calendar" && (
+            <CalendarView
+              cards={cards}
+              onAdd={() => openAdd("sched")}
+              onEdit={openEdit}
+            />
+          )}
+
+          {view === "analytics" && (
+            <AnalyticsView cards={cards} onEdit={openEdit} />
+          )}
         </main>
+
         <CardModal
           open={modalOpen}
           editing={editing}

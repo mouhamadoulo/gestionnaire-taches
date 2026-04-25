@@ -146,18 +146,30 @@ export function CardItem({ card, col, tint, onEdit, onDelete, onDragStart, onDra
               </span>
             )}
           </div>
-          <div className="flex gap-[2px] opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex gap-[3px] opacity-60 group-hover:opacity-100 transition-opacity">
             <button
-              onClick={() => onEdit(card.id)}
+              draggable={false}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(card.id);
+              }}
               title="Modifier"
-              className="bg-transparent border-none text-tm hover:text-t1 hover:bg-white/[0.06] cursor-pointer w-[22px] h-[22px] rounded text-[11px] transition-colors leading-none flex items-center justify-center"
+              aria-label="Modifier ce contenu"
+              className="bg-white/[0.04] hover:bg-white/[0.10] border border-white/[0.08] hover:border-white/20 text-t2 hover:text-t1 cursor-pointer w-[26px] h-[26px] rounded-[7px] text-[12px] transition-all leading-none flex items-center justify-center"
             >
               ✎
             </button>
             <button
-              onClick={() => onDelete(card.id)}
+              draggable={false}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(card.id);
+              }}
               title="Supprimer"
-              className="bg-transparent border-none text-tm hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 cursor-pointer w-[22px] h-[22px] rounded text-[11px] transition-colors leading-none flex items-center justify-center"
+              aria-label="Supprimer ce contenu"
+              className="bg-white/[0.04] hover:bg-[#ff6b6b]/15 border border-white/[0.08] hover:border-[#ff6b6b]/40 text-t2 hover:text-[#ff8a8a] cursor-pointer w-[26px] h-[26px] rounded-[7px] text-[12px] transition-all leading-none flex items-center justify-center"
             >
               ✕
             </button>

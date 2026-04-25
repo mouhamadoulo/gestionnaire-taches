@@ -2,16 +2,12 @@
 
 import type { PlatformKey } from "@/lib/types";
 
-type Tab = "board" | "list" | "analytics";
-
 interface Props {
   search: string;
   onSearch: (v: string) => void;
   platform: string;
   onPlatform: (v: string) => void;
   onAdd: () => void;
-  tab: Tab;
-  onTab: (t: Tab) => void;
 }
 
 const PLATFORM_OPTIONS: { value: PlatformKey | ""; label: string }[] = [
@@ -25,7 +21,7 @@ const PLATFORM_OPTIONS: { value: PlatformKey | ""; label: string }[] = [
   { value: "twitter",   label: "Twitter/X" },
 ];
 
-export function TopBar({ search, onSearch, platform, onPlatform, onAdd, tab, onTab }: Props) {
+export function TopBar({ search, onSearch, platform, onPlatform, onAdd }: Props) {
   return (
     <div
       className="px-7 py-[16px] flex items-end gap-[14px] flex-shrink-0 relative"
@@ -37,40 +33,15 @@ export function TopBar({ search, onSearch, platform, onPlatform, onAdd, tab, onT
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-[10px]">
           <h1 className="font-display italic text-t1 text-[30px] leading-none tracking-[-0.5px]">
-            Mon Contenu
+            Tableau Kanban
           </h1>
           <span className="font-mono text-[10px] text-tm uppercase tracking-[1.4px]">
             · Studio nocturne
           </span>
         </div>
-
-        {/* Tabs as segmented underline */}
-        <div className="flex gap-1 mt-[10px]">
-          {([
-            ["board",     "Kanban"],
-            ["list",      "Liste"],
-            ["analytics", "Analytiques"],
-          ] as const).map(([k, l]) => {
-            const active = tab === k;
-            return (
-              <button
-                key={k}
-                onClick={() => onTab(k)}
-                className={`relative px-[10px] py-[5px] text-[11px] font-semibold uppercase tracking-[0.6px] cursor-pointer border-none bg-transparent transition-colors ${
-                  active ? "text-t1" : "text-tm hover:text-t2"
-                }`}
-              >
-                {l}
-                {active && (
-                  <span
-                    aria-hidden
-                    className="absolute left-[10px] right-[10px] -bottom-[1px] h-[2px] bg-acc rounded-full"
-                    style={{ boxShadow: "0 0 12px rgba(255,107,53,0.7)" }}
-                  />
-                )}
-              </button>
-            );
-          })}
+        <div className="font-mono text-[10px] uppercase tracking-[1.4px] text-td mt-[8px] flex items-center gap-2">
+          <span className="w-1 h-1 rounded-full bg-acc" />
+          Glissez les cartes d&apos;une colonne à l&apos;autre · ⌘N pour ajouter
         </div>
       </div>
 

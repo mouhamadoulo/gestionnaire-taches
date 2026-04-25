@@ -42,3 +42,5 @@ export interface ColumnDef {
   barClass: string;
   hint: string;
 }
+
+export type ViewId = "dashboard" | "board" | "calendar" | "analytics";
