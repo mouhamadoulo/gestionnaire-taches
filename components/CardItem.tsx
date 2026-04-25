@@ -34,7 +34,7 @@ export function CardItem({ card, col, tint, onEdit, onDelete, onDragStart, onDra
       draggable
       onDragStart={(e) => onDragStart(card.id, e.currentTarget)}
       onDragEnd={(e) => onDragEnd(e.currentTarget)}
-      className="glass-card rounded-[12px] overflow-hidden cursor-grab relative group"
+      className="glass-card rounded-[12px] overflow-hidden cursor-grab relative group flex-shrink-0"
     >
       {/* Top tinted bar — column color, with subtle glow */}
       <div
