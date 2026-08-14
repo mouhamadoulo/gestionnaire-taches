@@ -3,12 +3,16 @@
 import { useEffect, useRef } from "react";
 import type { ColumnDef, ColumnId, Task } from "@/lib/types";
 import type { SortKey } from "@/lib/tasks";
+import { type Filters, hasFilters, matchesTask } from "@/lib/filters";
 import { Column } from "./Column";
 
 interface Props {
   tasks: Task[];
   columns: ColumnDef[];
   search: string;
+  filters: Filters;
+  /** « AAAA-MM-JJ », vide avant hydratation (voir lib/filters). */
+  today: string;
   onAdd: (colId: ColumnId) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
@@ -28,6 +32,8 @@ export function Board({
   tasks,
   columns,
   search,
+  filters,
+  today,
   onAdd,
   onEdit,
   onDelete,
@@ -119,14 +125,8 @@ export function Board({
     stopEdgeScroll();
   };
 
-  const filtered = q
-    ? tasks.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          (t.desc || "").toLowerCase().includes(q) ||
-          (t.tags || []).some((tag) => tag.toLowerCase().includes(q)),
-      )
-    : tasks;
+  const filtering = q.length > 0 || hasFilters(filters);
+  const filtered = filtering ? tasks.filter((t) => matchesTask(t, q, filters, today)) : tasks;
 
   return (
     <div
@@ -142,6 +142,8 @@ export function Board({
             key={col.id}
             col={col}
             tasks={filtered.filter((t) => t.col === col.id)}
+            filtering={filtering}
+            today={today}
             canMoveLeft={i > 0}
             canMoveRight={i < columns.length - 1}
             onAdd={onAdd}

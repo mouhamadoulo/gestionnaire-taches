@@ -2,11 +2,14 @@
 
 import type { Task } from "@/lib/types";
 import { CAT_COLOR, CAT_LBL, DONE_COLS } from "@/lib/constants";
+import { isDueToday, isOverdue } from "@/lib/filters";
 import { fmtDate, fmtDuration } from "@/lib/utils";
 
 interface Props {
   task: Task;
   tint: string;
+  /** « AAAA-MM-JJ », vide avant hydratation : aucune échéance n'est signalée. */
+  today: string;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onDragStart: (id: string, el: HTMLElement) => void;
@@ -19,11 +22,13 @@ const PRIO_TINT: Record<string, { hex: string; label: string }> = {
   low:  { hex: "#14b8a6", label: "Basse" },
 };
 
-export function TaskCard({ task, tint, onEdit, onDelete, onDragStart, onDragEnd }: Props) {
+export function TaskCard({ task, tint, today, onEdit, onDelete, onDragStart, onDragEnd }: Props) {
   const catColor = CAT_COLOR[task.cat] || "#64748b";
   const catLabel = CAT_LBL[task.cat] || task.cat;
   const isDone = DONE_COLS.includes(task.col);
   const prio = PRIO_TINT[task.prio] || PRIO_TINT.med;
+  const late = isOverdue(task, today);
+  const due = isDueToday(task, today);
 
   // Barre estimé / passé : 100 % = le plus grand des deux
   const scale = Math.max(task.estimate, task.spent);
@@ -141,7 +146,12 @@ export function TaskCard({ task, tint, onEdit, onDelete, onDragStart, onDragEnd 
               role="img"
             />
             {task.date && (
-              <span className="font-mono text-[10px] text-tm tabular-nums tracking-[0.3px]">
+              <span
+                className="font-mono text-[10px] tabular-nums tracking-[0.3px]"
+                style={{ color: late ? "var(--bad)" : due ? "var(--warn)" : "var(--tm)" }}
+                title={late ? "Échéance dépassée" : due ? "À faire aujourd'hui" : undefined}
+              >
+                {late && "⚠ "}
                 {fmtDate(task.date)}
               </span>
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColumnDef, ColumnId, Task, TaskDraft, ViewId } from "@/lib/types";
 import {
   COLUMNS_KEY,
@@ -21,6 +21,15 @@ import {
   withColumn,
 } from "@/lib/tasks";
 import { backupFilename, buildBackup, downloadJson, parseBackup } from "@/lib/backup";
+import {
+  type Filters,
+  EMPTY_FILTERS,
+  collectTags,
+  hasFilters,
+  isOverdue,
+  matchesTask,
+  pruneTags,
+} from "@/lib/filters";
 import { SAMPLE_TASKS } from "@/lib/sample-data";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
@@ -35,6 +44,13 @@ import { AnalyticsView } from "@/components/AnalyticsView";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UndoToast, type UndoOffer } from "@/components/UndoToast";
 
+/** Date locale du jour, « AAAA-MM-JJ » — même format que `Task.date`. */
+function localDay(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /** Instantané restauré par le bandeau « Annuler ». */
 interface UndoEntry extends UndoOffer {
   tasks: Task[];
@@ -46,8 +62,14 @@ export default function HomePage() {
   const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLS);
   const [hydrated, setHydrated] = useState(false);
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [view, setView] = useState<ViewId>("board");
   const [navCollapsed, setNavCollapsed] = useState(false);
+
+  /* Date du jour au format « AAAA-MM-JJ », renseignée après hydratation : le
+     serveur ne connaît pas le fuseau du navigateur et signalerait des retards
+     d'un jour de travers. */
+  const [today, setToday] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
@@ -89,7 +111,15 @@ export default function HomePage() {
       if (c) setColumns(sanitizeColumns(JSON.parse(c)));
       setNavCollapsed(localStorage.getItem(SIDEBAR_KEY) === "collapsed");
     } catch {}
+    setToday(localDay());
     setHydrated(true);
+  }, []);
+
+  /* Une session laissée ouverte doit changer de jour : sans cela une tâche du
+     lendemain resterait affichée « à faire aujourd'hui ». */
+  useEffect(() => {
+    const t = setInterval(() => setToday(localDay()), 60_000);
+    return () => clearInterval(t);
   }, []);
 
   const toggleNav = useCallback(() => {
@@ -236,6 +266,24 @@ export default function HomePage() {
     [columns, tasks, offerUndo],
   );
 
+  const tags = useMemo(() => collectTags(tasks), [tasks]);
+  const overdueCount = useMemo(
+    () => tasks.filter((t) => isOverdue(t, today)).length,
+    [tasks, today],
+  );
+
+  /* Un tag peut disparaître du tableau alors qu'il sert encore de filtre : le
+     tableau paraîtrait vide sans raison visible. */
+  useEffect(() => {
+    setFilters((f) => pruneTags(f, tags));
+  }, [tags]);
+
+  const shownCount = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q && !hasFilters(filters)) return tasks.length;
+    return tasks.filter((t) => matchesTask(t, q, filters, today)).length;
+  }, [tasks, search, filters, today]);
+
   const handleExport = useCallback(() => {
     const { tasks: t, columns: c } = stateRef.current;
     downloadJson(backupFilename(), buildBackup(t, c));
@@ -318,12 +366,20 @@ export default function HomePage() {
                 search={search}
                 onSearch={setSearch}
                 onAdd={() => openAdd("inbox")}
+                filters={filters}
+                onFilters={setFilters}
+                tags={tags}
+                overdueCount={overdueCount}
+                shown={shownCount}
+                total={tasks.length}
               />
               <StatsBar tasks={tasks} />
               <Board
                 tasks={tasks}
                 columns={columns}
                 search={search}
+                filters={filters}
+                today={today}
                 onAdd={openAdd}
                 onEdit={openEdit}
                 onDelete={handleDelete}
