@@ -55,7 +55,9 @@ doit dépendre de l'heure réelle.
 
 `.github/workflows/ci.yml` runs on every push and PR to `main` (plus `workflow_dispatch`):
 `npm ci` → `npm run lint -- --max-warnings=0` → `npm run typecheck` → `npm test` →
-`npm run build`, on Node 20 and 22. **A warning fails the build**, so a new ESLint warning has to
+`npm run build`, on Node 22 and 24 — jsdom pulls `undici`, which requires Node ≥ 22.19, and Node 20
+went out of support in April 2026 (`engines` in `package.json` states the floor). **A warning fails
+the build**, so a new ESLint warning has to
 be fixed or the rule tuned in `eslint.config.mjs` — not left in place. There is no deploy job in
 Actions: the app is client-only (`localStorage`), and previews/production are already handled by
 the Vercel GitHub integration, outside this workflow.

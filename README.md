@@ -73,7 +73,8 @@ npm run test:watch # Vitest en continu
 
 Les tests couvrent la logique pure de `lib/` (déplacement et tri des tâches, chronomètre,
 récurrence, relecture du stockage, import/export, filtres) : voir `lib/__tests__/`. Ils tournent
-dans la CI sur Node 20 et 22, avec le lint, le typecheck et le build.
+dans la CI sur Node 22 et 24, avec le lint, le typecheck et le build. **Node 22.19 au minimum** :
+jsdom, donc les tests d'interface, tire `undici` qui l'exige.
 
 > ⚠️ Ne pas lancer `npm run build` pendant que `npm run dev` tourne : le build écrase
 > `.next` et le serveur de dev renvoie ensuite des 404 sur ses chunks JS. Redémarrer le
@@ -129,7 +130,7 @@ lib/
   filters.ts  reminders.ts  utils.ts  use-theme.ts  sample-data.ts
   __tests__/          # tests Vitest de la logique pure
 .github/
-  workflows/ci.yml    # lint, typecheck, tests, build (Node 20 et 22)
+  workflows/ci.yml    # lint, typecheck, tests, build (Node 22 et 24)
 docs/
   images/             # captures d'écran
   user-guide/         # guide utilisateur
