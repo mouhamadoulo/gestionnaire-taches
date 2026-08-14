@@ -1,11 +1,9 @@
-export type ColumnId =
-  | "inbox"
-  | "todo"
-  | "doing"
-  | "review"
-  | "sched"
-  | "done"
-  | "arch";
+/**
+ * Identifiant de colonne. Les sept colonnes livrées avec l'application gardent
+ * leurs identifiants historiques ("inbox", "todo"…) ; les listes créées par
+ * l'utilisateur reçoivent un identifiant généré ("c" + horodatage).
+ */
+export type ColumnId = string;
 
 /** Catégorie de tâche — remplace l'ancienne notion de plateforme. */
 export type CategoryKey =
@@ -43,9 +41,14 @@ export interface Task {
 export interface ColumnDef {
   id: ColumnId;
   label: string;
-  dotClass: string;
-  barClass: string;
   hint: string;
+  /** Teinte d'accent (halo, liseré, pastille, compteur). */
+  tint: string;
+  /**
+   * Colonne structurelle référencée par les statistiques (à trier, planifié,
+   * terminé, archivé) : renommable et déplaçable, mais pas supprimable.
+   */
+  locked?: boolean;
 }
 
 export type ViewId = "dashboard" | "board" | "calendar" | "analytics";

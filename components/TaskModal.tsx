@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CategoryKey, ColumnId, Priority, Task } from "@/lib/types";
-import { CAT_LBL, CATEGORIES, COLS, DONE_COLS, TASK_TYPES } from "@/lib/constants";
+import type { CategoryKey, ColumnDef, ColumnId, Priority, Task } from "@/lib/types";
+import { CAT_LBL, CATEGORIES, DONE_COLS, TASK_TYPES } from "@/lib/constants";
 
 interface Props {
   open: boolean;
   editing: Task | null;
+  columns: ColumnDef[];
   defaultCol: ColumnId;
   onClose: () => void;
   onSave: (data: Omit<Task, "id"> & { id?: string }) => void;
@@ -48,7 +49,7 @@ const PRIO_STYLE: Record<Priority, { tint: string; text: string; label: string }
   low:  { tint: "#14b8a6", text: "var(--ok)",   label: "Basse" },
 };
 
-export function TaskModal({ open, editing, defaultCol, onClose, onSave }: Props) {
+export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave }: Props) {
   const [form, setForm] = useState<FormState>(EMPTY(defaultCol));
   const [titleError, setTitleError] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -240,14 +241,14 @@ export function TaskModal({ open, editing, defaultCol, onClose, onSave }: Props)
           </div>
 
           <div className="grid grid-cols-2 gap-[10px]">
-            <Field label="Colonne" htmlFor="f-col">
+            <Field label="Liste" htmlFor="f-col">
               <select
                 id="f-col"
                 value={form.col}
                 onChange={(e) => update("col", e.target.value as ColumnId)}
                 className="input"
               >
-                {COLS.map((c) => (
+                {columns.map((c) => (
                   <option key={c.id} value={c.id}>{c.label}</option>
                 ))}
               </select>

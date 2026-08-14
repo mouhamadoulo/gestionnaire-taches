@@ -42,16 +42,18 @@ components/
   TopBar.tsx        # Title, search, "+ Nouvelle tâche"
   StatsBar.tsx      # Five summary counters (derived from tasks)
   Board.tsx         # Horizontal scroll container; owns drag state via useRef
-  Column.tsx        # One kanban column (header, drop zone, task list or empty hint) + COL_TINT
+  Column.tsx        # One kanban column (header + ⋯ menu, drop zone, task list or empty hint)
   TaskCard.tsx      # One task card (badges, title, desc, tags, estimate/spent bar, footer)
-  TaskModal.tsx     # Create/edit dialog (self-contained form state, focus trap)
+  TaskModal.tsx     # Create/edit task dialog (self-contained form state, focus trap)
+  ColumnModal.tsx   # Create/rename list dialog (name, hint, tint swatches, live header preview)
   Dashboard.tsx     # Overview: flow ribbon, upcoming, overdue, category mix
   CalendarView.tsx  # Month grid + selected-day detail
   AnalyticsView.tsx # Time spent, estimation drift, ranking
   CursorAurora.tsx  # Cursor-following light (decorative)
 lib/
   types.ts          # Task, ColumnId, CategoryKey, Priority, ColumnDef, ViewId, ThemeMode
-  constants.ts      # COLS, CAT_COLOR, CAT_LBL, CATEGORIES, TASK_TYPES, DONE_COLS, ACTIVE_COLS, keys
+  constants.ts      # DEFAULT_COLS, COLUMN_TINTS, CAT_COLOR, CAT_LBL, CATEGORIES, TASK_TYPES, DONE_COLS, ACTIVE_COLS, keys
+  columns.ts        # sanitizeColumns (storage migration), moveColumn, tintOf, newColumnId
   utils.ts          # fmtDate, fmtNum, fmtDuration
   use-theme.ts      # Reads/writes data-theme + localStorage
   sample-data.ts    # SAMPLE_TASKS (seed when localStorage is empty)
@@ -69,22 +71,36 @@ interface Task {
 ```
 
 Persistence: `localStorage` key `molotask_tasks`, wired in `app/page.tsx` with two `useEffect`s
-(hydrate on mount, save on every change after hydration).
+(hydrate on mount, save on every change after hydration). The columns follow the same pattern
+under `molotask_columns`.
 
-### Columns
+### Columns (lists)
 
-`COLS` in `lib/constants.ts` defines the 7 lifecycle columns
+Columns are **data, not constants**: `HomePage` owns a `columns: ColumnDef[]` state, persisted
+under `molotask_columns`, and passes it to `Board`, `Dashboard`, `CalendarView` and `TaskModal`.
+The user can add, rename, recolor, reorder and delete them from the board.
+
+`DEFAULT_COLS` in `lib/constants.ts` is only the seed — the 7 lifecycle columns
 (`inbox → todo → doing → review → sched → done → arch`). Each entry provides `id`, `label`,
-dot/bar Tailwind classes, and an empty-state hint.
+`hint`, a `tint` hex (all accents derive from it) and an optional `locked`.
 
+- `ColumnId` is a plain `string`. User lists get `"c" + Date.now()`.
+- `locked: true` (`inbox`, `sched`, `done`, `arch`) — ids referenced in code, so these can be
+  renamed and moved but not deleted. Deleting any other list sends its tasks back to `inbox`.
 - `DONE_COLS = ['done', 'arch']` — these show the estimate/spent bar and the retrospective fields.
 - `ACTIVE_COLS = ['todo', 'doing', 'review']` — counted as "en cours" in the stats.
+- Stored columns come from a previous session, so they go through `sanitizeColumns`
+  (`lib/columns.ts`): invalid or duplicate entries are dropped, `locked` is re-derived from
+  `DEFAULT_COLS`, and any missing locked column is reinserted at its original index.
+- Use `col.tint` where you have the `ColumnDef`, `tintOf(columns, task.col)` where you only have
+  a task (it falls back to `FALLBACK_TINT` for an orphaned `col`).
 
 ### State ownership
 
-- **`HomePage`** owns `tasks`, `search`, `view`, and modal state. It passes handlers down.
+- **`HomePage`** owns `tasks`, `columns`, `search`, `view`, and modal state. It passes handlers down.
 - **`Board`** owns only the transient drag ID (`useRef`) — not the dragged task's data.
-- **`TaskModal`** owns its own form state; it resets via `useEffect` whenever `open` or `editing` changes.
+- **`TaskModal` / `ColumnModal`** own their own form state; each resets via `useEffect` whenever
+  `open` or `editing` changes.
 - **Theme** lives on `<html data-theme>`; `useTheme` reads and writes it plus `localStorage`.
 
 ### Theming (dark / light)

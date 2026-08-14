@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Task } from "@/lib/types";
+import type { ColumnDef, Task } from "@/lib/types";
 import { CAT_COLOR, CAT_LBL } from "@/lib/constants";
-import { COL_TINT } from "./Column";
+import { tintOf } from "@/lib/columns";
 
 interface Props {
   tasks: Task[];
+  columns: ColumnDef[];
   onAdd: () => void;
   onEdit: (id: string) => void;
 }
@@ -18,7 +19,7 @@ const MONTHS = [
 
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-export function CalendarView({ tasks, onAdd, onEdit }: Props) {
+export function CalendarView({ tasks, columns, onAdd, onEdit }: Props) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
@@ -191,7 +192,7 @@ export function CalendarView({ tasks, onAdd, onEdit }: Props) {
                 </div>
               ) : (
                 selectedTasks.map((t) => {
-                  const tint = COL_TINT[t.col];
+                  const tint = tintOf(columns, t.col);
                   return (
                     <button
                       key={t.id}
