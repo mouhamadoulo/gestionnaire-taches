@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import type { ViewId } from "@/lib/types";
 
 type SpaceItem = { icon: string; label: string; view: ViewId };
@@ -17,9 +18,11 @@ interface NavLinkProps {
   active?: boolean;
   collapsed?: boolean;
   onClick?: () => void;
+  /** Infobulle explicite ; sinon le libellé sert d'infobulle une fois replié. */
+  title?: string;
 }
 
-function NavLink({ icon, label, active, collapsed, onClick }: NavLinkProps) {
+function NavLink({ icon, label, active, collapsed, onClick, title }: NavLinkProps) {
   const base =
     "group flex items-center gap-[10px] py-[8px] rounded-[9px] cursor-pointer text-[13px] font-medium transition-all mb-px relative w-full text-left bg-transparent border-none";
   const pad = collapsed ? "px-0 justify-center" : "px-[11px]";
@@ -28,7 +31,8 @@ function NavLink({ icon, label, active, collapsed, onClick }: NavLinkProps) {
     <button
       type="button"
       onClick={onClick}
-      title={collapsed ? label : undefined}
+      title={title || (collapsed ? label : undefined)}
+      aria-label={collapsed ? label : undefined}
       aria-current={active ? "page" : undefined}
       className={`${base} ${pad} ${state}`}
     >
@@ -63,9 +67,20 @@ interface Props {
   onView: (v: ViewId) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  onExport: () => void;
+  onImport: (file: File) => void;
 }
 
-export function Sidebar({ view, onView, collapsed, onToggleCollapse }: Props) {
+export function Sidebar({ view, onView, collapsed, onToggleCollapse, onExport, onImport }: Props) {
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const pickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Remis à zéro pour que réimporter le même fichier redéclenche l'événement.
+    e.target.value = "";
+    if (file) onImport(file);
+  };
+
   return (
     <aside
       className={`${
@@ -130,6 +145,35 @@ export function Sidebar({ view, onView, collapsed, onToggleCollapse }: Props) {
             onClick={() => onView(it.view)}
           />
         ))}
+
+        {collapsed ? (
+          <div className="h-px bg-stroke1 my-[10px]" aria-hidden />
+        ) : (
+          <SectionTitle>Données</SectionTitle>
+        )}
+        <NavLink
+          icon="↓"
+          label="Exporter"
+          collapsed={collapsed}
+          onClick={onExport}
+          title="Télécharger tâches et listes au format JSON"
+        />
+        <NavLink
+          icon="↑"
+          label="Importer"
+          collapsed={collapsed}
+          onClick={() => fileRef.current?.click()}
+          title="Remplacer les données par un fichier de sauvegarde"
+        />
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          onChange={pickFile}
+          className="hidden"
+          aria-hidden
+          tabIndex={-1}
+        />
       </nav>
 
       {/* Carte utilisateur */}

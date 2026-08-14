@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CategoryKey, ColumnDef, ColumnId, Priority, Task } from "@/lib/types";
+import type { CategoryKey, ColumnDef, ColumnId, Priority, Task, TaskDraft } from "@/lib/types";
 import { CAT_LBL, CATEGORIES, DONE_COLS, TASK_TYPES } from "@/lib/constants";
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
   columns: ColumnDef[];
   defaultCol: ColumnId;
   onClose: () => void;
-  onSave: (data: Omit<Task, "id"> & { id?: string }) => void;
+  onSave: (data: TaskDraft) => void;
 }
 
 interface FormState {

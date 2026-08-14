@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import type { ColumnDef, ColumnId, Task, ViewId } from "@/lib/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ColumnDef, ColumnId, Task, TaskDraft, ViewId } from "@/lib/types";
 import {
   COLUMNS_KEY,
   DEFAULT_COLS,
@@ -10,6 +10,17 @@ import {
   STORAGE_KEY,
 } from "@/lib/constants";
 import { moveColumn, newColumnId, sanitizeColumns } from "@/lib/columns";
+import type { SortKey } from "@/lib/tasks";
+import {
+  isDoneCol,
+  moveTask,
+  nowIso,
+  reassignColumn,
+  sanitizeTasks,
+  sortColumn,
+  withColumn,
+} from "@/lib/tasks";
+import { backupFilename, buildBackup, downloadJson, parseBackup } from "@/lib/backup";
 import { SAMPLE_TASKS } from "@/lib/sample-data";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
@@ -22,6 +33,13 @@ import { Dashboard } from "@/components/Dashboard";
 import { CalendarView } from "@/components/CalendarView";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { UndoToast, type UndoOffer } from "@/components/UndoToast";
+
+/** Instantané restauré par le bandeau « Annuler ». */
+interface UndoEntry extends UndoOffer {
+  tasks: Task[];
+  columns: ColumnDef[];
+}
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>(SAMPLE_TASKS);
@@ -38,10 +56,35 @@ export default function HomePage() {
   const [colModalOpen, setColModalOpen] = useState(false);
   const [editingCol, setEditingCol] = useState<ColumnDef | null>(null);
 
+  const [undo, setUndo] = useState<UndoEntry | null>(null);
+
+  /* Miroir de l'état courant : `offerUndo` a besoin de l'avant-action sans
+     dépendre de `tasks` / `columns`, qui rendraient tous les gestionnaires
+     instables à chaque frappe. */
+  const stateRef = useRef({ tasks, columns });
+  useEffect(() => {
+    stateRef.current = { tasks, columns };
+  }, [tasks, columns]);
+
+  /** Prend l'instantané d'avant l'action et propose de revenir dessus. */
+  const offerUndo = useCallback((label: string) => {
+    const { tasks: t, columns: c } = stateRef.current;
+    setUndo({ id: Date.now(), label, tasks: t, columns: c });
+  }, []);
+
+  const dismissUndo = useCallback(() => setUndo(null), []);
+
+  const applyUndo = useCallback(() => {
+    if (!undo) return;
+    setTasks(undo.tasks);
+    setColumns(undo.columns);
+    setUndo(null);
+  }, [undo]);
+
   useEffect(() => {
     try {
       const s = localStorage.getItem(STORAGE_KEY);
-      if (s) setTasks(JSON.parse(s));
+      if (s) setTasks(sanitizeTasks(JSON.parse(s)));
       const c = localStorage.getItem(COLUMNS_KEY);
       if (c) setColumns(sanitizeColumns(JSON.parse(c)));
       setNavCollapsed(localStorage.getItem(SIDEBAR_KEY) === "collapsed");
@@ -89,25 +132,55 @@ export default function HomePage() {
     [tasks],
   );
 
-  const handleDelete = useCallback((id: string) => {
-    if (confirm("Supprimer cette tâche définitivement ?")) {
-      setTasks((prev) => prev.filter((t) => t.id !== id));
-    }
+  /* Plus de confirmation bloquante : l'instantané rend le geste réversible,
+     ce qui vaut mieux qu'une boîte de dialogue qu'on finit par valider sans
+     lire. */
+  const handleDelete = useCallback(
+    (id: string) => {
+      const t = stateRef.current.tasks.find((x) => x.id === id);
+      if (!t) return;
+      offerUndo(`« ${t.title} » supprimée.`);
+      setTasks((prev) => prev.filter((x) => x.id !== id));
+    },
+    [offerUndo],
+  );
+
+  const handleMove = useCallback((taskId: string, toCol: ColumnId, beforeId: string | null) => {
+    const at = nowIso();
+    setTasks((prev) => moveTask(prev, taskId, toCol, beforeId, at));
   }, []);
 
-  const handleMove = useCallback((taskId: string, toCol: ColumnId) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId && t.col !== toCol ? { ...t, col: toCol } : t)),
-    );
-  }, []);
+  const handleSortCol = useCallback(
+    (colId: ColumnId, key: SortKey) => {
+      const col = stateRef.current.columns.find((c) => c.id === colId);
+      offerUndo(`Liste « ${col?.label ?? colId} » triée.`);
+      setTasks((prev) => sortColumn(prev, colId, key));
+    },
+    [offerUndo],
+  );
 
-  const handleSave = useCallback((data: Omit<Task, "id"> & { id?: string }) => {
+  const handleSave = useCallback((data: TaskDraft) => {
+    const at = nowIso();
     setTasks((prev) => {
       if (data.id) {
-        return prev.map((t) => (t.id === data.id ? { ...t, ...data, id: t.id } : t));
+        return prev.map((t) => {
+          if (t.id !== data.id) return t;
+          // Le formulaire peut changer la liste : on repasse par withColumn
+          // pour que movedAt / doneAt suivent, comme lors d'un glisser-déposer.
+          const { id: _id, ...fields } = data;
+          return withColumn({ ...t, ...fields, col: t.col }, data.col, at);
+        });
       }
-      const newTask: Task = { ...data, id: "t" + Date.now() };
-      return [...prev, newTask];
+      return [
+        ...prev,
+        {
+          ...data,
+          id: "t" + Date.now(),
+          createdAt: at,
+          movedAt: at,
+          doneAt: isDoneCol(data.col) ? at : "",
+        },
+      ];
     });
     setModalOpen(false);
   }, []);
@@ -156,10 +229,43 @@ export default function HomePage() {
           ? ""
           : `\n\n${n} tâche${n > 1 ? "s" : ""} y ${n > 1 ? "sont" : "est"} rangée${n > 1 ? "s" : ""} — elle${n > 1 ? "s" : ""} repartira${n > 1 ? "ont" : ""} dans « À trier ».`;
       if (!confirm(`Supprimer la liste « ${col.label} » ?${suite}`)) return;
-      setTasks((prev) => prev.map((t) => (t.col === colId ? { ...t, col: INBOX_COL } : t)));
+      offerUndo(`Liste « ${col.label} » supprimée.`);
+      setTasks((prev) => reassignColumn(prev, colId, INBOX_COL));
       setColumns((prev) => prev.filter((c) => c.id !== colId));
     },
-    [columns, tasks],
+    [columns, tasks, offerUndo],
+  );
+
+  const handleExport = useCallback(() => {
+    const { tasks: t, columns: c } = stateRef.current;
+    downloadJson(backupFilename(), buildBackup(t, c));
+  }, []);
+
+  /* L'import remplace tout : le bandeau d'annulation est le filet, on ne
+     demande donc qu'une confirmation, avec le décompte de ce qui arrive. */
+  const handleImport = useCallback(
+    async (file: File) => {
+      let data: { tasks: Task[]; columns: ColumnDef[] };
+      try {
+        data = parseBackup(await file.text());
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Fichier illisible.");
+        return;
+      }
+
+      const current = stateRef.current.tasks.length;
+      const msg =
+        `Importer ${data.tasks.length} tâche${data.tasks.length > 1 ? "s" : ""} ` +
+        `et ${data.columns.length} liste${data.columns.length > 1 ? "s" : ""} ?\n\n` +
+        `Vos ${current} tâche${current > 1 ? "s" : ""} actuelle${current > 1 ? "s" : ""} ` +
+        `${current > 1 ? "seront remplacées" : "sera remplacée"} — annulable juste après.`;
+      if (!confirm(msg)) return;
+
+      offerUndo(`Sauvegarde importée (${data.tasks.length} tâches).`);
+      setTasks(data.tasks);
+      setColumns(data.columns);
+    },
+    [offerUndo],
   );
 
   useEffect(() => {
@@ -176,10 +282,21 @@ export default function HomePage() {
         e.preventDefault();
         toggleNav();
       }
+      // Ctrl/⌘+Z annule la dernière action, sauf pendant une saisie où la
+      // touche appartient au champ.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        const el = e.target as HTMLElement | null;
+        const typing =
+          el?.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(el?.tagName || "");
+        if (typing) return;
+        e.preventDefault();
+        applyUndo();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [openAdd, toggleNav]);
+  }, [openAdd, toggleNav, applyUndo]);
 
   return (
     <>
@@ -190,6 +307,8 @@ export default function HomePage() {
           onView={setView}
           collapsed={navCollapsed}
           onToggleCollapse={toggleNav}
+          onExport={handleExport}
+          onImport={handleImport}
         />
         <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
           <ThemeToggle className="absolute top-[16px] right-[20px] z-30" />
@@ -213,6 +332,7 @@ export default function HomePage() {
                 onRenameCol={openRenameCol}
                 onMoveCol={handleMoveCol}
                 onDeleteCol={handleDeleteCol}
+                onSortCol={handleSortCol}
               />
             </>
           )}
@@ -254,6 +374,8 @@ export default function HomePage() {
           onClose={() => setColModalOpen(false)}
           onSave={handleSaveCol}
         />
+
+        <UndoToast offer={undo} onUndo={applyUndo} onDismiss={dismissUndo} />
       </div>
     </>
   );

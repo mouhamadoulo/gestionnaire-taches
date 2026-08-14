@@ -36,7 +36,27 @@ export interface Task {
   learning: string;
   /** Notes libres (méthode, outils, blocages). */
   notes: string;
+
+  /**
+   * Horodatages techniques, en ISO 8601. Chaîne vide = inconnu : les tâches
+   * créées avant l'introduction de ces champs n'ont pas d'historique, et on
+   * préfère l'admettre plutôt que d'inventer une date. Tout ce qui les
+   * consomme doit donc tester la valeur avant de l'utiliser.
+   */
+  /** Création de la tâche. */
+  createdAt: string;
+  /** Dernier changement de liste. */
+  movedAt: string;
+  /** Entrée dans une liste terminée ; remis à vide si la tâche en ressort. */
+  doneAt: string;
 }
+
+/**
+ * Ce que le formulaire renvoie : les champs saisissables, plus l'identifiant
+ * en cas d'édition. Les horodatages sont posés par `HomePage`, jamais par le
+ * formulaire.
+ */
+export type TaskDraft = Omit<Task, "id" | "createdAt" | "movedAt" | "doneAt"> & { id?: string };
 
 export interface ColumnDef {
   id: ColumnId;

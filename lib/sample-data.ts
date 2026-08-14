@@ -1,6 +1,35 @@
 import type { Task } from "./types";
+import { isDoneCol } from "./tasks";
 
-export const SAMPLE_TASKS: Task[] = [
+/** Les horodatages du jeu d'exemple sont dérivés de l'échéance. */
+type SeedTask = Omit<Task, "createdAt" | "movedAt" | "doneAt">;
+
+/** Date de création par défaut des tâches d'exemple sans échéance. */
+const SEED_ORIGIN = "2026-08-10T09:00:00.000Z";
+
+/**
+ * Décale une date « AAAA-MM-JJ » de n jours et lui donne une heure fixe.
+ *
+ * Volontairement sans `Date.now()` : le jeu d'exemple sert d'état initial au
+ * rendu serveur comme au rendu client, les deux doivent produire exactement
+ * les mêmes chaînes.
+ */
+function shift(date: string, days: number, hour: string): string {
+  const d = new Date(`${date}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return `${d.toISOString().slice(0, 10)}T${hour}.000Z`;
+}
+
+function seed(t: SeedTask): Task {
+  if (isDoneCol(t.col) && t.date) {
+    const doneAt = shift(t.date, 0, "17:30:00");
+    return { ...t, createdAt: shift(t.date, -14, "09:00:00"), movedAt: doneAt, doneAt };
+  }
+  const createdAt = t.date ? shift(t.date, -7, "09:00:00") : SEED_ORIGIN;
+  return { ...t, createdAt, movedAt: createdAt, doneAt: "" };
+}
+
+const SEED: SeedTask[] = [
   { id: "t1",  col: "inbox",  title: "Trier les photos de vacances",              desc: "Récupérer les cartes SD, supprimer les doublons, sauvegarder sur le NAS.", cat: "perso",   type: "Tâche",       prio: "low",  date: "",           tags: ["photos", "sauvegarde"],        estimate: 90,  spent: 0,   learning: "", notes: "" },
   { id: "t2",  col: "inbox",  title: "Comparer les offres d'assurance habitation", desc: "3 devis minimum, vérifier la franchise et les garanties dégâts des eaux.", cat: "admin",   type: "Tâche",       prio: "med",  date: "",           tags: ["assurance", "comparatif"],     estimate: 60,  spent: 0,   learning: "", notes: "" },
   { id: "t3",  col: "inbox",  title: "Idée : automatiser le rapport hebdo",        desc: "Script qui agrège les tickets fermés et envoie le résumé le vendredi.",    cat: "projet",  type: "Note",        prio: "low",  date: "",           tags: ["automatisation", "idée"],      estimate: 0,   spent: 0,   learning: "", notes: "" },
@@ -24,3 +53,5 @@ export const SAMPLE_TASKS: Task[] = [
   { id: "t15", col: "arch",   title: "Déménagement du bureau",                     desc: "Cartons, transporteur, réinstallation du poste de travail.",               cat: "maison",  type: "Tâche",       prio: "high", date: "2026-04-11", tags: ["déménagement"],                estimate: 480, spent: 720, learning: "Sous-estimé de 50 % : prévoir large sur tout ce qui implique des tiers.", notes: "Deux jours au lieu d'un. Transporteur en retard." },
   { id: "t16", col: "arch",   title: "Certification cloud — examen blanc",         desc: "Deux examens blancs passés, score final 82 %.",                            cat: "etude",   type: "Tâche",       prio: "low",  date: "2026-03-19", tags: ["certification", "cloud"],      estimate: 240, spent: 210, learning: "Les examens blancs valent plus que la relecture passive du cours.", notes: "2 × 90 min + correction." },
 ];
+
+export const SAMPLE_TASKS: Task[] = SEED.map(seed);

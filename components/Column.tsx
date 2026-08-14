@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { ColumnDef, ColumnId, Task } from "@/lib/types";
+import type { SortKey } from "@/lib/tasks";
 import { TaskCard } from "./TaskCard";
 
 interface Props {
@@ -12,12 +13,14 @@ interface Props {
   onAdd: (colId: ColumnId) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
-  onDrop: (colId: ColumnId) => void;
+  /** `beforeId` : tâche devant laquelle déposer, `null` pour la fin de liste. */
+  onDrop: (colId: ColumnId, beforeId: string | null) => void;
   onDragStart: (id: string, el: HTMLElement) => void;
   onDragEnd: (el: HTMLElement) => void;
   onRenameCol: (colId: ColumnId) => void;
   onMoveCol: (colId: ColumnId, dir: -1 | 1) => void;
   onDeleteCol: (colId: ColumnId) => void;
+  onSortCol: (colId: ColumnId, key: SortKey) => void;
 }
 
 export function Column({
@@ -34,9 +37,28 @@ export function Column({
   onRenameCol,
   onMoveCol,
   onDeleteCol,
+  onSortCol,
 }: Props) {
   const tint = col.tint;
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const listRef = useRef<HTMLDivElement>(null);
+  /** Position d'insertion pendant un glisser : index dans `tasks`, ou `null`. */
+  const [dropAt, setDropAt] = useState<number | null>(null);
+
+  /* Position de dépôt : première carte dont le milieu passe sous le curseur.
+     La carte en cours de déplacement reste dans le DOM, elle compte donc comme
+     les autres — déposer sur soi-même est traité comme un non-déplacement. */
+  const indexAt = (clientY: number) => {
+    const el = listRef.current;
+    if (!el) return tasks.length;
+    const cards = Array.from(el.querySelectorAll<HTMLElement>("[data-task-id]"));
+    for (let i = 0; i < cards.length; i++) {
+      const r = cards[i].getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) return i;
+    }
+    return cards.length;
+  };
 
   // Échap ferme le menu avant que la page ne traite la touche.
   useEffect(() => {
@@ -120,6 +142,19 @@ export function Column({
             >
               <MenuItem label="Renommer" icon="✎" onClick={() => runAndClose(() => onRenameCol(col.id))} />
               <MenuItem
+                label="Trier par priorité"
+                icon="↕"
+                disabled={tasks.length < 2}
+                onClick={() => runAndClose(() => onSortCol(col.id, "prio"))}
+              />
+              <MenuItem
+                label="Trier par échéance"
+                icon="↕"
+                disabled={tasks.length < 2}
+                onClick={() => runAndClose(() => onSortCol(col.id, "date"))}
+              />
+              <div className="h-px bg-stroke1 my-[4px]" aria-hidden />
+              <MenuItem
                 label="Déplacer à gauche"
                 icon="←"
                 disabled={!canMoveLeft}
@@ -147,18 +182,23 @@ export function Column({
 
       {/* Zone de dépôt */}
       <div
+        ref={listRef}
         data-col-list
         onDragOver={(e) => {
           e.preventDefault();
           e.currentTarget.classList.add("drop-active");
+          setDropAt(indexAt(e.clientY));
         }}
         onDragLeave={(e) => {
           e.currentTarget.classList.remove("drop-active");
+          setDropAt(null);
         }}
         onDrop={(e) => {
           e.preventDefault();
           e.currentTarget.classList.remove("drop-active");
-          onDrop(col.id);
+          const at = dropAt ?? indexAt(e.clientY);
+          setDropAt(null);
+          onDrop(col.id, at < tasks.length ? tasks[at].id : null);
         }}
         className="col-scroll flex-1 overflow-y-auto overscroll-contain px-[10px] pt-[3px] pb-[12px] flex flex-col gap-[10px] min-h-[60px] transition-all"
       >
@@ -180,20 +220,36 @@ export function Column({
             </span>
           </button>
         ) : (
-          tasks.map((t) => (
-            <TaskCard
-              key={t.id}
-              task={t}
-              tint={tint}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-            />
-          ))
+          <>
+            {tasks.map((t, i) => (
+              <Fragment key={t.id}>
+                {dropAt === i && <DropLine tint={tint} />}
+                <TaskCard
+                  task={t}
+                  tint={tint}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onDragStart={onDragStart}
+                  onDragEnd={onDragEnd}
+                />
+              </Fragment>
+            ))}
+            {dropAt === tasks.length && <DropLine tint={tint} />}
+          </>
         )}
       </div>
     </section>
+  );
+}
+
+/** Trait d'insertion affiché à la position de dépôt pendant un glisser. */
+function DropLine({ tint }: { tint: string }) {
+  return (
+    <div
+      aria-hidden
+      className="h-[3px] rounded-full -my-[3px] flex-shrink-0"
+      style={{ background: tint, boxShadow: `0 0 10px -1px ${tint}` }}
+    />
   );
 }
 
