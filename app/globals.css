@@ -316,6 +316,15 @@
   }
   .btn-primary:hover { transform: translateY(-1px); }
 
+  /* Validation d'une action destructrice : même forme que .btn-primary, la
+     couleur d'alerte du thème actif à la place de l'accent. */
+  .btn-danger {
+    @apply text-white border-none cursor-pointer transition-all;
+    background: var(--bad);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px -2px rgba(0,0,0,0.35);
+  }
+  .btn-danger:hover { transform: translateY(-1px); filter: brightness(1.08); }
+
   .input {
     @apply text-[13px] text-t1 outline-none w-full transition-all rounded-[9px] px-[12px] py-[9px];
     background: var(--fill-1);

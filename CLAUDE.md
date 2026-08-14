@@ -26,13 +26,20 @@ npm run test:watch # Vitest en continu
 
 ### Tests
 
-Vitest, `environment: 'node'`, `TZ` forcé à UTC (`vitest.config.ts`). Les tests vivent dans
-`lib/__tests__/*.test.ts` — **pas** dans un dossier `tests/` à la racine, que `next lint`
-n'inspecterait pas. `lib/__tests__/factory.ts` fournit `task()`, une tâche complète et neutre à
-surcharger champ par champ.
+Vitest, `TZ` forcé à UTC, deux projets (`vitest.config.ts`) :
 
-Ce qui est couvert : la logique pure de `lib/` (`tasks`, `columns`, `backup`, `filters`,
-`utils`). Les composants ne le sont pas — il n'y a ni jsdom ni testing-library dans le projet.
+- **`lib`** — `environment: 'node'`, `lib/**/*.test.ts`. Logique pure, pas de DOM à charger.
+- **`ui`** — `environment: 'jsdom'` + `vitest.setup.ts`, `{components,lib}/**/*.test.tsx`.
+  Testing Library ; le setup ajoute les matchers `jest-dom` et un `cleanup` après chaque test.
+
+L'extension décide donc du projet : `.test.ts` pour du pur, `.test.tsx` pour du rendu.
+Les tests vivent dans `lib/__tests__/` et `components/__tests__/` — **pas** dans un dossier
+`tests/` à la racine, que `next lint` n'inspecterait pas. `lib/__tests__/factory.ts` fournit
+`task()`, une tâche complète et neutre à surcharger champ par champ.
+
+`tsconfig.json` laisse le JSX à Next (`"jsx": "preserve"`), d'où le `esbuild: { jsx: 'automatic' }`
+de la config Vitest : hors build Next, personne d'autre ne transforme le JSX.
+
 `withRecurrence` n'est pas testable en l'état : il est défini dans `app/page.tsx` et non exporté.
 
 Écrire un test = fixer une décision déjà prise, pas décrire l'implémentation : `doneAt` effacé
@@ -77,6 +84,7 @@ components/
   TaskModal.tsx     # Create/edit task dialog (self-contained form state, focus trap)
   ColumnModal.tsx   # Create/rename list dialog (name, hint, tint swatches, live header preview)
   UndoToast.tsx     # "Annuler" banner shown after a destructive action
+  ConfirmModal.tsx  # Themed confirm / notify dialog (replaces confirm() and alert())
   FilterMenu.tsx    # Filter popover opened from the top bar
   Dashboard.tsx     # Overview: flow ribbon, upcoming, overdue, category mix
   CalendarView.tsx  # Month grid + selected-day detail
@@ -92,6 +100,8 @@ lib/
   reminders.ts      # opt-in browser notifications for due tasks
   utils.ts          # fmtDate, fmtNum, fmtDuration
   use-theme.ts      # Reads/writes data-theme + localStorage
+  use-confirm.ts    # Promise-based ask() / notify() driving ConfirmModal
+  use-focus-trap.ts # Keeps Tab inside an open dialog (shared by the 3 modals)
   sample-data.ts    # SAMPLE_TASKS (seed when localStorage is empty)
 ```
 
@@ -184,6 +194,14 @@ mirror of the state so the handlers do not have to depend on `tasks` / `columns`
 
 Because deletion is reversible, deleting a task has **no** confirm dialog. Deleting a list keeps
 one, since it also relocates every task it holds.
+
+Confirmations go through `useConfirm` (`lib/use-confirm.ts`), never `confirm()` / `alert()` —
+native dialogs ignore `data-theme` and every token in `globals.css`. `ask()` returns a promise so
+callers keep their shape (`if (!(await ask({…}))) return;`), and `notify()` is the one-button
+variant that replaces `alert()`. A pending question is settled with `false` if another one
+supersedes it or the component unmounts, so no caller is left waiting forever. `HomePage` renders
+a single `<ConfirmModal dialog={dialog} />` and its global key handler stands down while a dialog
+is open, otherwise Escape would also close the modal underneath.
 
 Export writes `molotask-YYYY-MM-DD.json` (`{ app, version, exportedAt, tasks, columns }`).
 Import treats the file as hostile: wrong `app` marker or a newer `version` is refused with a

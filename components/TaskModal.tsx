@@ -13,6 +13,7 @@ import type {
 } from "@/lib/types";
 import { CAT_LBL, CATEGORIES, DONE_COLS, REPEAT_LBL, REPEATS, TASK_TYPES } from "@/lib/constants";
 import { newStepId } from "@/lib/tasks";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 interface Props {
   open: boolean;
@@ -96,28 +97,7 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
     return () => clearTimeout(t);
   }, [open, editing, defaultCol]);
 
-  // Piège à focus : Tab reste dans la boîte de dialogue.
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Tab" || !dialogRef.current) return;
-      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  useFocusTrap(open, dialogRef);
 
   if (!open) return null;
 

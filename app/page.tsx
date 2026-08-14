@@ -54,6 +54,8 @@ import { CalendarView } from "@/components/CalendarView";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UndoToast, type UndoOffer } from "@/components/UndoToast";
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { useConfirm } from "@/lib/use-confirm";
 
 /** Date locale du jour, « AAAA-MM-JJ » — même format que `Task.date`. */
 function localDay(): string {
@@ -120,6 +122,10 @@ export default function HomePage() {
   const [editingCol, setEditingCol] = useState<ColumnDef | null>(null);
 
   const [undo, setUndo] = useState<UndoEntry | null>(null);
+
+  /* Confirmations et messages, en lieu et place de `confirm()` / `alert()`. */
+  const { dialog, ask, notify } = useConfirm();
+  const dialogOpen = dialog !== null;
 
   /* Miroir de l'état courant : `offerUndo` a besoin de l'avant-action sans
      dépendre de `tasks` / `columns`, qui rendraient tous les gestionnaires
@@ -337,20 +343,28 @@ export default function HomePage() {
   }, []);
 
   const handleDeleteCol = useCallback(
-    (colId: ColumnId) => {
+    async (colId: ColumnId) => {
       const col = columns.find((c) => c.id === colId);
       if (!col || col.locked) return;
       const n = tasks.filter((t) => t.col === colId).length;
       const suite =
         n === 0
           ? ""
-          : `\n\n${n} tâche${n > 1 ? "s" : ""} y ${n > 1 ? "sont" : "est"} rangée${n > 1 ? "s" : ""} — elle${n > 1 ? "s" : ""} repartira${n > 1 ? "ont" : ""} dans « À trier ».`;
-      if (!confirm(`Supprimer la liste « ${col.label} » ?${suite}`)) return;
+          : `${n} tâche${n > 1 ? "s" : ""} y ${n > 1 ? "sont" : "est"} rangée${n > 1 ? "s" : ""} — elle${n > 1 ? "s" : ""} repartir${n > 1 ? "ont" : "a"} dans « À trier ».`;
+
+      const ok = await ask({
+        title: `Supprimer la liste « ${col.label} » ?`,
+        body: suite,
+        confirmLabel: "Supprimer",
+        tone: "danger",
+      });
+      if (!ok) return;
+
       offerUndo(`Liste « ${col.label} » supprimée.`);
       setTasks((prev) => reassignColumn(prev, colId, INBOX_COL));
       setColumns((prev) => prev.filter((c) => c.id !== colId));
     },
-    [columns, tasks, offerUndo],
+    [columns, tasks, offerUndo, ask],
   );
 
   const tags = useMemo(() => collectTags(tasks), [tasks]);
@@ -384,27 +398,39 @@ export default function HomePage() {
       try {
         data = parseBackup(await file.text());
       } catch (err) {
-        alert(err instanceof Error ? err.message : "Fichier illisible.");
+        await notify({
+          title: "Import impossible",
+          body: err instanceof Error ? err.message : "Fichier illisible.",
+        });
         return;
       }
 
       const current = stateRef.current.tasks.length;
-      const msg =
-        `Importer ${data.tasks.length} tâche${data.tasks.length > 1 ? "s" : ""} ` +
-        `et ${data.columns.length} liste${data.columns.length > 1 ? "s" : ""} ?\n\n` +
-        `Vos ${current} tâche${current > 1 ? "s" : ""} actuelle${current > 1 ? "s" : ""} ` +
-        `${current > 1 ? "seront remplacées" : "sera remplacée"} — annulable juste après.`;
-      if (!confirm(msg)) return;
+      const ok = await ask({
+        title:
+          `Importer ${data.tasks.length} tâche${data.tasks.length > 1 ? "s" : ""} ` +
+          `et ${data.columns.length} liste${data.columns.length > 1 ? "s" : ""} ?`,
+        body:
+          `Vos ${current} tâche${current > 1 ? "s" : ""} actuelle${current > 1 ? "s" : ""} ` +
+          `${current > 1 ? "seront remplacées" : "sera remplacée"} — annulable juste après.`,
+        confirmLabel: "Importer",
+      });
+      if (!ok) return;
 
       offerUndo(`Sauvegarde importée (${data.tasks.length} tâches).`);
       setTasks(data.tasks);
       setColumns(data.columns);
     },
-    [offerUndo],
+    [offerUndo, ask, notify],
   );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      /* Une question est posée : elle capte le clavier à elle seule. Sans
+         cela, Échap refermerait aussi la modale qui l'a ouverte et Ctrl+Z
+         annulerait une action qu'on n'a pas encore confirmée. */
+      if (dialogOpen) return;
+
       if (e.key === "Escape") {
         setModalOpen(false);
         setColModalOpen(false);
@@ -431,7 +457,7 @@ export default function HomePage() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [openAdd, toggleNav, applyUndo]);
+  }, [openAdd, toggleNav, applyUndo, dialogOpen]);
 
   return (
     <>
@@ -520,6 +546,8 @@ export default function HomePage() {
           onClose={() => setColModalOpen(false)}
           onSave={handleSaveCol}
         />
+
+        <ConfirmModal dialog={dialog} />
 
         <UndoToast offer={undo} onUndo={applyUndo} onDismiss={dismissUndo} />
       </div>
