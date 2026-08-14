@@ -1,4 +1,4 @@
-import type { CategoryKey, ColumnDef, ColumnId } from "./types";
+import type { CategoryKey, ColumnDef, ColumnId, Repeat } from "./types";
 
 /**
  * Colonnes livrées avec l'application. Elles servent de graine : dès la
@@ -70,6 +70,26 @@ export const TASK_TYPES = [
   "Note",
 ] as const;
 
+/** Périodicités proposées dans le formulaire. */
+export const REPEAT_LBL: Record<Repeat, string> = {
+  "":        "Ne se répète pas",
+  daily:     "Chaque jour",
+  weekly:    "Chaque semaine",
+  monthly:   "Chaque mois",
+  yearly:    "Chaque année",
+};
+
+/** Version courte, affichée sur la carte. */
+export const REPEAT_SHORT: Record<Repeat, string> = {
+  "":        "",
+  daily:     "quotidien",
+  weekly:    "hebdo",
+  monthly:   "mensuel",
+  yearly:    "annuel",
+};
+
+export const REPEATS = Object.keys(REPEAT_LBL) as Repeat[];
+
 /** Colonnes considérées comme terminées — rétrospective + temps passé. */
 export const DONE_COLS: ColumnId[] = ["done", "arch"];
 
@@ -80,3 +100,7 @@ export const STORAGE_KEY = "molotask_tasks";
 export const COLUMNS_KEY = "molotask_columns";
 export const THEME_KEY = "molotask_theme";
 export const SIDEBAR_KEY = "molotask_sidebar";
+/** Rappels d'échéance : « on » / « off ». */
+export const REMINDERS_KEY = "molotask_reminders";
+/** `{ idTâche: jour }` des rappels déjà envoyés. */
+export const NOTIFIED_KEY = "molotask_notified";

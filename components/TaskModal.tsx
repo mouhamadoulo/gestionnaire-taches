@@ -1,8 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CategoryKey, ColumnDef, ColumnId, Priority, Task, TaskDraft } from "@/lib/types";
-import { CAT_LBL, CATEGORIES, DONE_COLS, TASK_TYPES } from "@/lib/constants";
+import type {
+  CategoryKey,
+  ColumnDef,
+  ColumnId,
+  Priority,
+  Repeat,
+  Step,
+  Task,
+  TaskDraft,
+} from "@/lib/types";
+import { CAT_LBL, CATEGORIES, DONE_COLS, REPEAT_LBL, REPEATS, TASK_TYPES } from "@/lib/constants";
+import { newStepId } from "@/lib/tasks";
 
 interface Props {
   open: boolean;
@@ -22,6 +32,8 @@ interface FormState {
   date: string;
   prio: Priority;
   tags: string;
+  repeat: Repeat;
+  steps: Step[];
   estimate: string;
   spent: string;
   learning: string;
@@ -37,6 +49,8 @@ const EMPTY = (col: ColumnId): FormState => ({
   date: "",
   prio: "med",
   tags: "",
+  repeat: "",
+  steps: [],
   estimate: "",
   spent: "",
   learning: "",
@@ -67,6 +81,8 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
         date: editing.date || "",
         prio: editing.prio,
         tags: (editing.tags || []).join(", "),
+        repeat: editing.repeat || "",
+        steps: (editing.steps || []).map((s) => ({ ...s })),
         estimate: editing.estimate ? String(editing.estimate) : "",
         spent: editing.spent ? String(editing.spent) : "",
         learning: editing.learning || "",
@@ -130,6 +146,10 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
       date: form.date,
       prio: form.prio,
       tags,
+      repeat: form.repeat,
+      // Une étape sans libellé est une ligne que l'utilisateur a ouverte puis
+      // laissée vide : on ne l'enregistre pas.
+      steps: form.steps.filter((s) => s.label.trim()).map((s) => ({ ...s, label: s.label.trim() })),
       estimate: parseInt(form.estimate) || 0,
       spent: parseInt(form.spent) || 0,
       learning: form.learning,
@@ -264,6 +284,26 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
             </Field>
           </div>
 
+          <Field label="Répétition" htmlFor="f-repeat">
+            <select
+              id="f-repeat"
+              value={form.repeat}
+              onChange={(e) => update("repeat", e.target.value as Repeat)}
+              className="input"
+              aria-describedby={form.repeat ? "f-repeat-hint" : undefined}
+            >
+              {REPEATS.map((r) => (
+                <option key={r || "none"} value={r}>{REPEAT_LBL[r]}</option>
+              ))}
+            </select>
+            {form.repeat && (
+              <span id="f-repeat-hint" className="text-[11px] text-tm leading-[1.45]">
+                Une nouvelle occurrence sera créée dès que celle-ci passera en
+                terminé{form.date ? ", avec l'échéance décalée d'autant" : ""}.
+              </span>
+            )}
+          </Field>
+
           <div className="grid grid-cols-2 gap-[10px]">
             <Field label="Temps estimé (minutes)" htmlFor="f-est">
               <input
@@ -315,6 +355,13 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
               </div>
             </Field>
           </div>
+
+          <Field label="Étapes">
+            <StepEditor
+              steps={form.steps}
+              onChange={(steps) => update("steps", steps)}
+            />
+          </Field>
 
           <Field label="Tags (séparés par des virgules)" htmlFor="f-tags">
             <input
@@ -381,6 +428,91 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Checklist éditable.
+ *
+ * Entrée valide une étape et en ouvre une suivante, pour saisir une liste
+ * d'affilée sans repasser par la souris.
+ */
+function StepEditor({ steps, onChange }: { steps: Step[]; onChange: (s: Step[]) => void }) {
+  const [focusId, setFocusId] = useState<string | null>(null);
+
+  const patch = (id: string, fields: Partial<Step>) =>
+    onChange(steps.map((s) => (s.id === id ? { ...s, ...fields } : s)));
+
+  const addAfter = (index: number) => {
+    const step: Step = { id: newStepId(), label: "", done: false };
+    const next = [...steps];
+    next.splice(index + 1, 0, step);
+    onChange(next);
+    setFocusId(step.id);
+  };
+
+  const done = steps.filter((s) => s.done).length;
+
+  return (
+    <div className="flex flex-col gap-[6px]">
+      {steps.map((s, i) => (
+        <div key={s.id} className="flex items-center gap-[8px]">
+          <input
+            type="checkbox"
+            checked={s.done}
+            onChange={(e) => patch(s.id, { done: e.target.checked })}
+            aria-label={`Étape faite : ${s.label || "sans titre"}`}
+            className="w-[15px] h-[15px] flex-shrink-0 accent-[#14b8a6] cursor-pointer"
+          />
+          <input
+            type="text"
+            value={s.label}
+            autoFocus={s.id === focusId}
+            onChange={(e) => patch(s.id, { label: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addAfter(i);
+              }
+              if (e.key === "Backspace" && !s.label && steps.length > 1) {
+                e.preventDefault();
+                onChange(steps.filter((x) => x.id !== s.id));
+                setFocusId(steps[Math.max(0, i - 1)]?.id ?? null);
+              }
+            }}
+            placeholder="Décrire l'étape…"
+            className="input !py-[6px] !text-[12px]"
+            style={
+              s.done ? { textDecoration: "line-through", color: "var(--tm)" } : undefined
+            }
+          />
+          <button
+            type="button"
+            onClick={() => onChange(steps.filter((x) => x.id !== s.id))}
+            aria-label={`Retirer l'étape ${s.label || "sans titre"}`}
+            title="Retirer"
+            className="btn-ghost w-[26px] h-[26px] rounded-[7px] text-[11px] flex items-center justify-center flex-shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => addAfter(steps.length - 1)}
+          className="btn-ghost px-[11px] py-[6px] rounded-[8px] text-[11px] font-semibold self-start"
+        >
+          ＋ Ajouter une étape
+        </button>
+        {steps.length > 0 && (
+          <span className="font-mono text-[10px] text-tm tabular-nums">
+            {done}/{steps.length} fait{done > 1 ? "es" : ""}
+          </span>
+        )}
       </div>
     </div>
   );

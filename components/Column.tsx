@@ -8,11 +8,15 @@ import { TaskCard } from "./TaskCard";
 interface Props {
   col: ColumnDef;
   tasks: Task[];
+  /** Une recherche ou un filtre est actif : une liste vide n'est pas vide. */
+  filtering: boolean;
+  today: string;
   canMoveLeft: boolean;
   canMoveRight: boolean;
   onAdd: (colId: ColumnId) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onToggleTimer: (id: string) => void;
   /** `beforeId` : tâche devant laquelle déposer, `null` pour la fin de liste. */
   onDrop: (colId: ColumnId, beforeId: string | null) => void;
   onDragStart: (id: string, el: HTMLElement) => void;
@@ -26,11 +30,14 @@ interface Props {
 export function Column({
   col,
   tasks,
+  filtering,
+  today,
   canMoveLeft,
   canMoveRight,
   onAdd,
   onEdit,
   onDelete,
+  onToggleTimer,
   onDrop,
   onDragStart,
   onDragEnd,
@@ -202,7 +209,13 @@ export function Column({
         }}
         className="col-scroll flex-1 overflow-y-auto overscroll-contain px-[10px] pt-[3px] pb-[12px] flex flex-col gap-[10px] min-h-[60px] transition-all"
       >
-        {tasks.length === 0 ? (
+        {tasks.length === 0 && filtering ? (
+          <div className="dashed flex items-center justify-center px-3 py-7 rounded-[10px] mx-[1px] text-tm text-center font-mono text-[10px] uppercase tracking-[0.8px] leading-[1.6]">
+            Rien ici avec
+            <br />
+            ces filtres
+          </div>
+        ) : tasks.length === 0 ? (
           <button
             type="button"
             onClick={() => onAdd(col.id)}
@@ -227,8 +240,10 @@ export function Column({
                 <TaskCard
                   task={t}
                   tint={tint}
+                  today={today}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  onToggleTimer={onToggleTimer}
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
                 />

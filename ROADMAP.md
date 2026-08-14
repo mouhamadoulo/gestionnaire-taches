@@ -9,7 +9,10 @@ définitivement perdu.
 
 > **État — Tier 1 livré** sur la branche `feat/tier-1-foundations`, dans l'ordre
 > 1 → 4 → 2 → 3 (l'annulation avant l'export/import, pour que l'import soit lui aussi
-> annulable). Prochaine étape : Tier 2, en commençant par les filtres (5).
+> annulable).
+>
+> **Tier 2 livré** sur `feat/tier-2-daily-use` (items 5 à 9). Prochaine étape : Tier 3,
+> en commençant par la sélection multiple (10) ou le responsive mobile (11).
 
 ---
 
@@ -72,32 +75,39 @@ réversible, la boîte de dialogue ne servait plus qu'à être validée sans êt
 
 ---
 
-## Tier 2 — Usage quotidien
+## Tier 2 — Usage quotidien ✅
 
-### 5. Filtres
+### 5. Filtres — fait
 
-`search` ne filtre que le texte. Manquent : filtrage par catégorie, par priorité, par tag, et un
-raccourci « en retard ». À loger dans `TopBar`, à appliquer là où `search` l'est déjà (`Board`).
+Panneau « Filtrer » dans `TopBar` : catégories, priorités, tags réellement présents (les 18 plus
+utilisés) et bascule « En retard ». Les critères se cumulent en « ou » dans un groupe, en « et »
+entre groupes. Le compteur « n sur m affichées » et le badge « n en retard » complètent la barre ;
+une colonne vidée par un filtre le dit au lieu de proposer d'ajouter une tâche.
 
-### 6. Sous-tâches / checklist
+### 6. Sous-tâches / checklist — fait
 
-`Task.desc` est un bloc de texte libre. Une checklist typée (`{ label, done }[]`) permettrait une
-barre de progression sur `TaskCard` et un découpage réel des grosses tâches.
+`Task.steps` (`{ id, label, done }[]`), éditable dans `TaskModal` — Entrée valide et ouvre l'étape
+suivante, Retour arrière sur une ligne vide la supprime. La carte affiche l'avancement et une
+barre qui passe au vert une fois la liste finie.
 
-### 7. Chronomètre
+### 7. Chronomètre — fait
 
-`spent` se saisit à la main dans `TaskModal`. Un bouton lecture/pause sur les cartes en cours,
-qui incrémente `spent`, rendrait les chiffres d'`AnalyticsView` fiables au lieu d'être déclaratifs.
+`Task.startedAt` plus un bouton lecture/arrêt sur les cartes non terminées. Le total se rafraîchit
+sur la carte, survit à un rechargement, et un seul chronomètre tourne à la fois. Terminer une
+tâche arrête le sien et verse le temps dans `spent`.
 
-### 8. Tâches récurrentes
+### 8. Tâches récurrentes — fait
 
-« Sport le lundi », « facture le 1er ». Un champ `repeat` sur `Task` et une régénération
-automatique à la complétion.
+`Task.repeat` (quotidien, hebdomadaire, mensuel, annuel). Terminer une occurrence en crée une
+nouvelle à la place laissée, dans la liste d'origine, remise à zéro. Le décalage d'échéance borne
+au dernier jour du mois et avance jusqu'à dépasser aujourd'hui.
 
-### 9. Rappels d'échéance
+### 9. Rappels d'échéance — fait
 
-`date` existe mais rien ne la surveille. Notification navigateur, ou au minimum un badge
-« 3 en retard » cliquable dans `StatsBar` / `TopBar`.
+Bascule « Rappels » dans la barre latérale : une notification groupée pour les tâches dues ou en
+retard, au plus une fois par jour et par tâche. **Limite assumée** : sans service worker ni
+serveur, un rappel ne part que si MoloTask est ouvert — l'infobulle le dit. Un vrai rappel hors
+session dépend du PWA (15) ou d'un serveur (16).
 
 ---
 

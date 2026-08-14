@@ -1,14 +1,20 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { Task } from "@/lib/types";
-import { CAT_COLOR, CAT_LBL, DONE_COLS } from "@/lib/constants";
+import { CAT_COLOR, CAT_LBL, DONE_COLS, REPEAT_SHORT } from "@/lib/constants";
+import { isDueToday, isOverdue } from "@/lib/filters";
+import { elapsedMinutes, stepProgress } from "@/lib/tasks";
 import { fmtDate, fmtDuration } from "@/lib/utils";
 
 interface Props {
   task: Task;
   tint: string;
+  /** « AAAA-MM-JJ », vide avant hydratation : aucune échéance n'est signalée. */
+  today: string;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onToggleTimer: (id: string) => void;
   onDragStart: (id: string, el: HTMLElement) => void;
   onDragEnd: (el: HTMLElement) => void;
 }
@@ -19,11 +25,35 @@ const PRIO_TINT: Record<string, { hex: string; label: string }> = {
   low:  { hex: "#14b8a6", label: "Basse" },
 };
 
-export function TaskCard({ task, tint, onEdit, onDelete, onDragStart, onDragEnd }: Props) {
+export function TaskCard({
+  task,
+  tint,
+  today,
+  onEdit,
+  onDelete,
+  onToggleTimer,
+  onDragStart,
+  onDragEnd,
+}: Props) {
+  /* Chronomètre en cours : la carte se rafraîchit toute seule, sans faire
+     battre tout le tableau. */
+  const running = Boolean(task.startedAt);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => tick((n) => n + 1), 15_000);
+    return () => clearInterval(t);
+  }, [running]);
+  const elapsed = running ? elapsedMinutes(task) : 0;
+
   const catColor = CAT_COLOR[task.cat] || "#64748b";
   const catLabel = CAT_LBL[task.cat] || task.cat;
   const isDone = DONE_COLS.includes(task.col);
   const prio = PRIO_TINT[task.prio] || PRIO_TINT.med;
+  const late = isOverdue(task, today);
+  const due = isDueToday(task, today);
+  const steps = stepProgress(task);
+  const stepsPct = steps.total > 0 ? Math.round((steps.done / steps.total) * 100) : 0;
 
   // Barre estimé / passé : 100 % = le plus grand des deux
   const scale = Math.max(task.estimate, task.spent);
@@ -74,6 +104,14 @@ export function TaskCard({ task, tint, onEdit, onDelete, onDragStart, onDragEnd 
           <span className="chip uppercase tracking-[0.5px] !text-[9px] !font-semibold">
             {task.type}
           </span>
+          {task.repeat && (
+            <span
+              className="chip uppercase tracking-[0.5px] !text-[9px] !font-semibold"
+              title={`Se répète : ${REPEAT_SHORT[task.repeat]}`}
+            >
+              🔁 {REPEAT_SHORT[task.repeat]}
+            </span>
+          )}
         </div>
 
         {/* Titre */}
@@ -85,6 +123,29 @@ export function TaskCard({ task, tint, onEdit, onDelete, onDragStart, onDragEnd 
           <p className="text-[11.5px] text-t2 leading-[1.5] mb-[9px] line-clamp-2">
             {task.desc}
           </p>
+        )}
+
+        {steps.total > 0 && (
+          <div className="mb-[9px]">
+            <div className="flex items-center justify-between mb-[4px] font-mono text-[10px] text-tm tabular-nums">
+              <span>{steps.done === steps.total ? "☑ Étapes" : "☐ Étapes"}</span>
+              <span style={steps.done === steps.total ? { color: "var(--ok)" } : undefined}>
+                {steps.done}/{steps.total}
+              </span>
+            </div>
+            <div className="track h-[4px] rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-[width] duration-[400ms]"
+                style={{
+                  width: `${stepsPct}%`,
+                  background:
+                    steps.done === steps.total
+                      ? "linear-gradient(90deg, #14b8a6, #14b8a6aa)"
+                      : `linear-gradient(90deg, ${tint}, ${tint}aa)`,
+                }}
+              />
+            </div>
+          </div>
         )}
 
         {task.tags && task.tags.length > 0 && (
@@ -141,17 +202,61 @@ export function TaskCard({ task, tint, onEdit, onDelete, onDragStart, onDragEnd 
               role="img"
             />
             {task.date && (
-              <span className="font-mono text-[10px] text-tm tabular-nums tracking-[0.3px]">
+              <span
+                className="font-mono text-[10px] tabular-nums tracking-[0.3px]"
+                style={{ color: late ? "var(--bad)" : due ? "var(--warn)" : "var(--tm)" }}
+                title={late ? "Échéance dépassée" : due ? "À faire aujourd'hui" : undefined}
+              >
+                {late && "⚠ "}
                 {fmtDate(task.date)}
               </span>
             )}
-            {!isDone && task.estimate > 0 && (
+            {!isDone && !running && task.estimate > 0 && (
               <span className="font-mono text-[10px] text-td tabular-nums">
                 ⏱ {fmtDuration(task.estimate)}
               </span>
             )}
+            {running && (
+              <span
+                className="font-mono text-[10px] tabular-nums flex items-center gap-[4px]"
+                style={{ color: "var(--warn)" }}
+                title="Chronomètre en cours"
+              >
+                <span className="w-[6px] h-[6px] rounded-full bg-current animate-breathe" aria-hidden />
+                {fmtDuration(task.spent + elapsed)}
+              </span>
+            )}
           </div>
           <div className="flex gap-[3px] opacity-70 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            {!isDone && (
+              <button
+                draggable={false}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleTimer(task.id);
+                }}
+                title={running ? "Arrêter le chronomètre" : "Démarrer le chronomètre"}
+                aria-label={
+                  running
+                    ? `Arrêter le chronomètre de « ${task.title} »`
+                    : `Démarrer le chronomètre de « ${task.title} »`
+                }
+                aria-pressed={running}
+                className="btn-ghost w-[26px] h-[26px] rounded-[7px] text-[10px] leading-none flex items-center justify-center"
+                style={
+                  running
+                    ? {
+                        color: "var(--warn)",
+                        borderColor: "rgba(245,158,11,0.5)",
+                        background: "rgba(245,158,11,0.12)",
+                      }
+                    : undefined
+                }
+              >
+                {running ? "■" : "▶"}
+              </button>
+            )}
             <button
               draggable={false}
               onMouseDown={(e) => e.stopPropagation()}

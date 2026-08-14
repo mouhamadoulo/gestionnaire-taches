@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColumnDef, ColumnId, Task, TaskDraft, ViewId } from "@/lib/types";
 import {
   COLUMNS_KEY,
@@ -14,13 +14,33 @@ import type { SortKey } from "@/lib/tasks";
 import {
   isDoneCol,
   moveTask,
+  nextOccurrence,
   nowIso,
   reassignColumn,
   sanitizeTasks,
   sortColumn,
+  startTimer,
+  stopTimer,
   withColumn,
 } from "@/lib/tasks";
 import { backupFilename, buildBackup, downloadJson, parseBackup } from "@/lib/backup";
+import {
+  type ReminderState,
+  askPermission,
+  readOptIn,
+  reminderState,
+  sendReminders,
+  writeOptIn,
+} from "@/lib/reminders";
+import {
+  type Filters,
+  EMPTY_FILTERS,
+  collectTags,
+  hasFilters,
+  isOverdue,
+  matchesTask,
+  pruneTags,
+} from "@/lib/filters";
 import { SAMPLE_TASKS } from "@/lib/sample-data";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
@@ -35,6 +55,39 @@ import { AnalyticsView } from "@/components/AnalyticsView";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UndoToast, type UndoOffer } from "@/components/UndoToast";
 
+/** Date locale du jour, « AAAA-MM-JJ » — même format que `Task.date`. */
+function localDay(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/**
+ * Insère l'occurrence suivante quand une tâche récurrente vient d'entrer dans
+ * une liste terminée.
+ *
+ * La nouvelle occurrence prend la place laissée par l'ancienne, pour réappa-
+ * raître là où l'utilisateur la cherchait — pas en bout de tableau.
+ */
+function withRecurrence(
+  tasks: Task[],
+  before: Task | undefined,
+  toCol: ColumnId,
+  at: string,
+  day: string,
+): Task[] {
+  if (!before || !before.repeat) return tasks;
+  if (!isDoneCol(toCol) || isDoneCol(before.col)) return tasks;
+
+  const clone = nextOccurrence(before, before.col, at, day);
+  if (!clone) return tasks;
+
+  const i = tasks.findIndex((t) => t.id === before.id);
+  const next = [...tasks];
+  next.splice(i === -1 ? next.length : i, 0, clone);
+  return next;
+}
+
 /** Instantané restauré par le bandeau « Annuler ». */
 interface UndoEntry extends UndoOffer {
   tasks: Task[];
@@ -46,8 +99,18 @@ export default function HomePage() {
   const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLS);
   const [hydrated, setHydrated] = useState(false);
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [view, setView] = useState<ViewId>("board");
   const [navCollapsed, setNavCollapsed] = useState(false);
+
+  /* Date du jour au format « AAAA-MM-JJ », renseignée après hydratation : le
+     serveur ne connaît pas le fuseau du navigateur et signalerait des retards
+     d'un jour de travers. */
+  const [today, setToday] = useState("");
+
+  /* Rappels d'échéance. L'état par défaut « off » est aussi celui du rendu
+     serveur, où l'API Notification n'existe pas. */
+  const [reminders, setReminders] = useState<ReminderState>("off");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
@@ -89,7 +152,36 @@ export default function HomePage() {
       if (c) setColumns(sanitizeColumns(JSON.parse(c)));
       setNavCollapsed(localStorage.getItem(SIDEBAR_KEY) === "collapsed");
     } catch {}
+    setToday(localDay());
+    setReminders(reminderState(readOptIn()));
     setHydrated(true);
+  }, []);
+
+  const toggleReminders = useCallback(async () => {
+    const state = reminderState(readOptIn());
+    if (state === "unsupported" || state === "denied") return;
+    if (state === "on") {
+      writeOptIn(false);
+      setReminders("off");
+      return;
+    }
+    const permission = await askPermission();
+    writeOptIn(permission === "granted");
+    setReminders(reminderState(permission === "granted"));
+  }, []);
+
+  /* Un rappel part à l'activation, au changement de jour, et quand une tâche
+     bouge — `sendReminders` ne réveille chaque tâche qu'une fois par jour. */
+  useEffect(() => {
+    if (!hydrated || reminders !== "on") return;
+    sendReminders(tasks, today);
+  }, [hydrated, reminders, today, tasks]);
+
+  /* Une session laissée ouverte doit changer de jour : sans cela une tâche du
+     lendemain resterait affichée « à faire aujourd'hui ». */
+  useEffect(() => {
+    const t = setInterval(() => setToday(localDay()), 60_000);
+    return () => clearInterval(t);
   }, []);
 
   const toggleNav = useCallback(() => {
@@ -147,7 +239,27 @@ export default function HomePage() {
 
   const handleMove = useCallback((taskId: string, toCol: ColumnId, beforeId: string | null) => {
     const at = nowIso();
-    setTasks((prev) => moveTask(prev, taskId, toCol, beforeId, at));
+    const day = localDay();
+    setTasks((prev) => {
+      const before = prev.find((t) => t.id === taskId);
+      return withRecurrence(moveTask(prev, taskId, toCol, beforeId, at), before, toCol, at, day);
+    });
+  }, []);
+
+  /* Un seul chronomètre à la fois : démarrer une tâche arrête celle qui
+     tournait, sinon on oublie un compteur en route et `spent` devient faux. */
+  const handleToggleTimer = useCallback((taskId: string) => {
+    const at = nowIso();
+    const now = Date.now();
+    setTasks((prev) => {
+      const target = prev.find((t) => t.id === taskId);
+      if (!target) return prev;
+      const starting = !target.startedAt;
+      return prev.map((t) => {
+        if (t.id === taskId) return starting ? startTimer(t, at) : stopTimer(t, now);
+        return t.startedAt ? stopTimer(t, now) : t;
+      });
+    });
   }, []);
 
   const handleSortCol = useCallback(
@@ -161,21 +273,26 @@ export default function HomePage() {
 
   const handleSave = useCallback((data: TaskDraft) => {
     const at = nowIso();
+    const day = localDay();
     setTasks((prev) => {
       if (data.id) {
-        return prev.map((t) => {
-          if (t.id !== data.id) return t;
-          // Le formulaire peut changer la liste : on repasse par withColumn
-          // pour que movedAt / doneAt suivent, comme lors d'un glisser-déposer.
-          const { id: _id, ...fields } = data;
-          return withColumn({ ...t, ...fields, col: t.col }, data.col, at);
-        });
+        const before = prev.find((t) => t.id === data.id);
+        if (!before) return prev;
+        // Le formulaire peut changer la liste : on repasse par withColumn
+        // pour que movedAt / doneAt suivent, comme lors d'un glisser-déposer.
+        const { id: _id, ...fields } = data;
+        const merged = { ...before, ...fields, col: before.col };
+        const list = prev.map((t) => (t.id === data.id ? withColumn(merged, data.col, at) : t));
+        // `merged` porte la périodicité telle qu'elle vient d'être saisie :
+        // cocher « chaque semaine » et terminer d'un coup doit fonctionner.
+        return withRecurrence(list, merged, data.col, at, day);
       }
       return [
         ...prev,
         {
           ...data,
           id: "t" + Date.now(),
+          startedAt: "",
           createdAt: at,
           movedAt: at,
           doneAt: isDoneCol(data.col) ? at : "",
@@ -235,6 +352,24 @@ export default function HomePage() {
     },
     [columns, tasks, offerUndo],
   );
+
+  const tags = useMemo(() => collectTags(tasks), [tasks]);
+  const overdueCount = useMemo(
+    () => tasks.filter((t) => isOverdue(t, today)).length,
+    [tasks, today],
+  );
+
+  /* Un tag peut disparaître du tableau alors qu'il sert encore de filtre : le
+     tableau paraîtrait vide sans raison visible. */
+  useEffect(() => {
+    setFilters((f) => pruneTags(f, tags));
+  }, [tags]);
+
+  const shownCount = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q && !hasFilters(filters)) return tasks.length;
+    return tasks.filter((t) => matchesTask(t, q, filters, today)).length;
+  }, [tasks, search, filters, today]);
 
   const handleExport = useCallback(() => {
     const { tasks: t, columns: c } = stateRef.current;
@@ -309,6 +444,8 @@ export default function HomePage() {
           onToggleCollapse={toggleNav}
           onExport={handleExport}
           onImport={handleImport}
+          reminders={reminders}
+          onToggleReminders={toggleReminders}
         />
         <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
           <ThemeToggle className="absolute top-[16px] right-[20px] z-30" />
@@ -318,15 +455,24 @@ export default function HomePage() {
                 search={search}
                 onSearch={setSearch}
                 onAdd={() => openAdd("inbox")}
+                filters={filters}
+                onFilters={setFilters}
+                tags={tags}
+                overdueCount={overdueCount}
+                shown={shownCount}
+                total={tasks.length}
               />
               <StatsBar tasks={tasks} />
               <Board
                 tasks={tasks}
                 columns={columns}
                 search={search}
+                filters={filters}
+                today={today}
                 onAdd={openAdd}
                 onEdit={openEdit}
                 onDelete={handleDelete}
+                onToggleTimer={handleToggleTimer}
                 onMove={handleMove}
                 onAddCol={openAddCol}
                 onRenameCol={openRenameCol}

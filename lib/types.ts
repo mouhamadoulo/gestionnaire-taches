@@ -18,6 +18,16 @@ export type CategoryKey =
 
 export type Priority = "high" | "med" | "low";
 
+/** Périodicité d'une tâche récurrente ; chaîne vide = tâche ponctuelle. */
+export type Repeat = "" | "daily" | "weekly" | "monthly" | "yearly";
+
+/** Une étape de la checklist d'une tâche. */
+export interface Step {
+  id: string;
+  label: string;
+  done: boolean;
+}
+
 export interface Task {
   id: string;
   col: ColumnId;
@@ -28,10 +38,19 @@ export interface Task {
   prio: Priority;
   date: string;
   tags: string[];
+  /** Découpage de la tâche ; liste vide quand elle n'en a pas besoin. */
+  steps: Step[];
+  /** Périodicité : une nouvelle occurrence naît quand celle-ci est terminée. */
+  repeat: Repeat;
   /** Temps estimé, en minutes. */
   estimate: number;
   /** Temps réellement passé, en minutes (tâches terminées / archivées). */
   spent: number;
+  /**
+   * Début du chronomètre en cours, en ISO 8601 ; chaîne vide à l'arrêt.
+   * Persisté, donc un chronomètre survit à un rechargement de page.
+   */
+  startedAt: string;
   /** Rétrospective — ce qui a marché, ce qu'il faut changer. */
   learning: string;
   /** Notes libres (méthode, outils, blocages). */
@@ -56,7 +75,10 @@ export interface Task {
  * en cas d'édition. Les horodatages sont posés par `HomePage`, jamais par le
  * formulaire.
  */
-export type TaskDraft = Omit<Task, "id" | "createdAt" | "movedAt" | "doneAt"> & { id?: string };
+export type TaskDraft = Omit<
+  Task,
+  "id" | "createdAt" | "movedAt" | "doneAt" | "startedAt"
+> & { id?: string };
 
 export interface ColumnDef {
   id: ColumnId;
