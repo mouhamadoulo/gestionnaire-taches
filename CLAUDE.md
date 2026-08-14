@@ -47,6 +47,7 @@ components/
   TaskModal.tsx     # Create/edit task dialog (self-contained form state, focus trap)
   ColumnModal.tsx   # Create/rename list dialog (name, hint, tint swatches, live header preview)
   UndoToast.tsx     # "Annuler" banner shown after a destructive action
+  FilterMenu.tsx    # Filter popover opened from the top bar
   Dashboard.tsx     # Overview: flow ribbon, upcoming, overdue, category mix
   CalendarView.tsx  # Month grid + selected-day detail
   AnalyticsView.tsx # Time spent, estimation drift, ranking
@@ -55,8 +56,10 @@ lib/
   types.ts          # Task, TaskDraft, ColumnId, CategoryKey, Priority, ColumnDef, ViewId, ThemeMode
   constants.ts      # DEFAULT_COLS, COLUMN_TINTS, CAT_COLOR, CAT_LBL, CATEGORIES, TASK_TYPES, DONE_COLS, ACTIVE_COLS, keys
   columns.ts        # sanitizeColumns (storage migration), moveColumn, tintOf, newColumnId
-  tasks.ts          # sanitizeTasks, withColumn, moveTask, sortColumn, cycle-time helpers
+  tasks.ts          # sanitizeTasks, withColumn, moveTask, sortColumn, timer + recurrence + cycle-time helpers
   backup.ts         # buildBackup, parseBackup, downloadJson (JSON export / import)
+  filters.ts        # Filters, matchesTask, isOverdue / isDueToday, collectTags
+  reminders.ts      # opt-in browser notifications for due tasks
   utils.ts          # fmtDate, fmtNum, fmtDuration
   use-theme.ts      # Reads/writes data-theme + localStorage
   sample-data.ts    # SAMPLE_TASKS (seed when localStorage is empty)
@@ -68,7 +71,10 @@ lib/
 interface Task {
   id, col, title, desc, cat,     // cat = category key (travail, perso, projet…)
   type, prio, date, tags,        // date = user-facing due date
+  steps,                         // checklist: { id, label, done }[]
+  repeat,                        // "" | daily | weekly | monthly | yearly
   estimate, spent,               // minutes; spent is filled in on done/archived tasks
+  startedAt,                     // running timer start, ISO; "" when stopped
   learning, notes,               // retrospective, shown for done/archived tasks
   createdAt, movedAt, doneAt     // ISO timestamps; "" means unknown
 }
@@ -116,6 +122,29 @@ from the pointer against each card midpoint and passes a `beforeId` (`null` = en
 `moveTask` (`lib/tasks.ts`) removes the task then re-inserts it before that id. Dropping a card
 just before itself is a no-op. `sortColumn` reorders only the array slots one column already
 occupies, leaving every other list untouched.
+
+### Today, lateness and reminders
+
+`HomePage` holds `today` as `"YYYY-MM-DD"`, **empty until after hydration** and refreshed every
+minute. The server does not know the browser timezone, so anything date-relative (`isOverdue`,
+`isDueToday`, recurrence roll-forward) treats an empty `today` as "say nothing" rather than
+risking a day-off answer. Pass `today` down instead of calling `new Date()` inside a component
+that server-renders.
+
+Reminders (`lib/reminders.ts`) are opt-in browser notifications, deduped to one per task per day
+in `localStorage`. Without a service worker they only fire while the app is open — the UI says so
+rather than implying an alarm.
+
+### Timer and recurrence
+
+`startedAt` is the running timer's start; `spent` only moves when the timer stops, so a reload
+does not lose the session. Exactly one timer runs at a time (`handleToggleTimer` stops the
+others), and `withColumn` banks the running time when a task is completed.
+
+Completing a task whose `repeat` is set inserts `nextOccurrence` at the slot the old one held,
+back in the column it came from. The clone resets `spent`, `startedAt`, `doneAt`, the
+retrospective, and unchecks its steps with fresh ids. Month/year shifts clamp to the end of the
+month, and the due date rolls forward past `today`.
 
 ### Undo and backups
 
