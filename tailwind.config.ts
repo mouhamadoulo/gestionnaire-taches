@@ -79,12 +79,18 @@ const config: Config = {
           "0%":   { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        // Compte à rebours du bandeau d'annulation
+        undoBar: {
+          "0%":   { transform: "scaleX(1)" },
+          "100%": { transform: "scaleX(0)" },
+        },
       },
       animation: {
         modalIn:  "modalIn .22s cubic-bezier(.2,.8,.2,1)",
         fadeUp:   "fadeUp .45s cubic-bezier(.2,.8,.2,1) both",
         breathe:  "breathe 3.2s ease-in-out infinite",
         shimmer:  "shimmer 2.4s linear infinite",
+        undoBar:  "undoBar linear forwards",
       },
     },
   },

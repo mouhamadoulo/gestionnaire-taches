@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ColumnDef, ColumnId, Task, TaskDraft, ViewId } from "@/lib/types";
 import {
   COLUMNS_KEY,
@@ -23,6 +23,13 @@ import { Dashboard } from "@/components/Dashboard";
 import { CalendarView } from "@/components/CalendarView";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { UndoToast, type UndoOffer } from "@/components/UndoToast";
+
+/** Instantané restauré par le bandeau « Annuler ». */
+interface UndoEntry extends UndoOffer {
+  tasks: Task[];
+  columns: ColumnDef[];
+}
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>(SAMPLE_TASKS);
@@ -38,6 +45,31 @@ export default function HomePage() {
 
   const [colModalOpen, setColModalOpen] = useState(false);
   const [editingCol, setEditingCol] = useState<ColumnDef | null>(null);
+
+  const [undo, setUndo] = useState<UndoEntry | null>(null);
+
+  /* Miroir de l'état courant : `offerUndo` a besoin de l'avant-action sans
+     dépendre de `tasks` / `columns`, qui rendraient tous les gestionnaires
+     instables à chaque frappe. */
+  const stateRef = useRef({ tasks, columns });
+  useEffect(() => {
+    stateRef.current = { tasks, columns };
+  }, [tasks, columns]);
+
+  /** Prend l'instantané d'avant l'action et propose de revenir dessus. */
+  const offerUndo = useCallback((label: string) => {
+    const { tasks: t, columns: c } = stateRef.current;
+    setUndo({ id: Date.now(), label, tasks: t, columns: c });
+  }, []);
+
+  const dismissUndo = useCallback(() => setUndo(null), []);
+
+  const applyUndo = useCallback(() => {
+    if (!undo) return;
+    setTasks(undo.tasks);
+    setColumns(undo.columns);
+    setUndo(null);
+  }, [undo]);
 
   useEffect(() => {
     try {
@@ -90,11 +122,18 @@ export default function HomePage() {
     [tasks],
   );
 
-  const handleDelete = useCallback((id: string) => {
-    if (confirm("Supprimer cette tâche définitivement ?")) {
-      setTasks((prev) => prev.filter((t) => t.id !== id));
-    }
-  }, []);
+  /* Plus de confirmation bloquante : l'instantané rend le geste réversible,
+     ce qui vaut mieux qu'une boîte de dialogue qu'on finit par valider sans
+     lire. */
+  const handleDelete = useCallback(
+    (id: string) => {
+      const t = stateRef.current.tasks.find((x) => x.id === id);
+      if (!t) return;
+      offerUndo(`« ${t.title} » supprimée.`);
+      setTasks((prev) => prev.filter((x) => x.id !== id));
+    },
+    [offerUndo],
+  );
 
   const handleMove = useCallback((taskId: string, toCol: ColumnId) => {
     const at = nowIso();
@@ -171,10 +210,11 @@ export default function HomePage() {
           ? ""
           : `\n\n${n} tâche${n > 1 ? "s" : ""} y ${n > 1 ? "sont" : "est"} rangée${n > 1 ? "s" : ""} — elle${n > 1 ? "s" : ""} repartira${n > 1 ? "ont" : ""} dans « À trier ».`;
       if (!confirm(`Supprimer la liste « ${col.label} » ?${suite}`)) return;
+      offerUndo(`Liste « ${col.label} » supprimée.`);
       setTasks((prev) => reassignColumn(prev, colId, INBOX_COL));
       setColumns((prev) => prev.filter((c) => c.id !== colId));
     },
-    [columns, tasks],
+    [columns, tasks, offerUndo],
   );
 
   useEffect(() => {
@@ -191,10 +231,21 @@ export default function HomePage() {
         e.preventDefault();
         toggleNav();
       }
+      // Ctrl/⌘+Z annule la dernière action, sauf pendant une saisie où la
+      // touche appartient au champ.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        const el = e.target as HTMLElement | null;
+        const typing =
+          el?.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(el?.tagName || "");
+        if (typing) return;
+        e.preventDefault();
+        applyUndo();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [openAdd, toggleNav]);
+  }, [openAdd, toggleNav, applyUndo]);
 
   return (
     <>
@@ -269,6 +320,8 @@ export default function HomePage() {
           onClose={() => setColModalOpen(false)}
           onSave={handleSaveCol}
         />
+
+        <UndoToast offer={undo} onUndo={applyUndo} onDismiss={dismissUndo} />
       </div>
     </>
   );
