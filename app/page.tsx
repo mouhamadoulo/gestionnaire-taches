@@ -10,7 +10,16 @@ import {
   STORAGE_KEY,
 } from "@/lib/constants";
 import { moveColumn, newColumnId, sanitizeColumns } from "@/lib/columns";
-import { isDoneCol, nowIso, reassignColumn, sanitizeTasks, withColumn } from "@/lib/tasks";
+import type { SortKey } from "@/lib/tasks";
+import {
+  isDoneCol,
+  moveTask,
+  nowIso,
+  reassignColumn,
+  sanitizeTasks,
+  sortColumn,
+  withColumn,
+} from "@/lib/tasks";
 import { backupFilename, buildBackup, downloadJson, parseBackup } from "@/lib/backup";
 import { SAMPLE_TASKS } from "@/lib/sample-data";
 import { Sidebar } from "@/components/Sidebar";
@@ -136,10 +145,19 @@ export default function HomePage() {
     [offerUndo],
   );
 
-  const handleMove = useCallback((taskId: string, toCol: ColumnId) => {
+  const handleMove = useCallback((taskId: string, toCol: ColumnId, beforeId: string | null) => {
     const at = nowIso();
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? withColumn(t, toCol, at) : t)));
+    setTasks((prev) => moveTask(prev, taskId, toCol, beforeId, at));
   }, []);
+
+  const handleSortCol = useCallback(
+    (colId: ColumnId, key: SortKey) => {
+      const col = stateRef.current.columns.find((c) => c.id === colId);
+      offerUndo(`Liste « ${col?.label ?? colId} » triée.`);
+      setTasks((prev) => sortColumn(prev, colId, key));
+    },
+    [offerUndo],
+  );
 
   const handleSave = useCallback((data: TaskDraft) => {
     const at = nowIso();
@@ -314,6 +332,7 @@ export default function HomePage() {
                 onRenameCol={openRenameCol}
                 onMoveCol={handleMoveCol}
                 onDeleteCol={handleDeleteCol}
+                onSortCol={handleSortCol}
               />
             </>
           )}

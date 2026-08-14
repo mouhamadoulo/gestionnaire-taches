@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { ColumnDef, ColumnId, Task } from "@/lib/types";
+import type { SortKey } from "@/lib/tasks";
 import { Column } from "./Column";
 
 interface Props {
@@ -11,11 +12,12 @@ interface Props {
   onAdd: (colId: ColumnId) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
-  onMove: (taskId: string, toCol: ColumnId) => void;
+  onMove: (taskId: string, toCol: ColumnId, beforeId: string | null) => void;
   onAddCol: () => void;
   onRenameCol: (colId: ColumnId) => void;
   onMoveCol: (colId: ColumnId, dir: -1 | 1) => void;
   onDeleteCol: (colId: ColumnId) => void;
+  onSortCol: (colId: ColumnId, key: SortKey) => void;
 }
 
 // Défilement automatique quand on glisse une carte près d'un bord
@@ -34,6 +36,7 @@ export function Board({
   onRenameCol,
   onMoveCol,
   onDeleteCol,
+  onSortCol,
 }: Props) {
   const dragIdRef = useRef<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -110,8 +113,8 @@ export function Board({
     dragIdRef.current = null;
     stopEdgeScroll();
   };
-  const handleDrop = (colId: ColumnId) => {
-    if (dragIdRef.current) onMove(dragIdRef.current, colId);
+  const handleDrop = (colId: ColumnId, beforeId: string | null) => {
+    if (dragIdRef.current) onMove(dragIdRef.current, colId, beforeId);
     dragIdRef.current = null;
     stopEdgeScroll();
   };
@@ -150,6 +153,7 @@ export function Board({
             onRenameCol={onRenameCol}
             onMoveCol={onMoveCol}
             onDeleteCol={onDeleteCol}
+            onSortCol={onSortCol}
           />
         ))}
 

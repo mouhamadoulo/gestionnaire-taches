@@ -48,6 +48,7 @@ export function TaskCard({ task, tint, onEdit, onDelete, onDragStart, onDragEnd 
   return (
     <article
       draggable
+      data-task-id={task.id}
       onDragStart={(e) => onDragStart(task.id, e.currentTarget)}
       onDragEnd={(e) => onDragEnd(e.currentTarget)}
       className="glass-card rounded-[12px] overflow-hidden cursor-grab relative group flex-shrink-0"

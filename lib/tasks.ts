@@ -102,6 +102,81 @@ export function sanitizeTasks(raw: unknown): Task[] {
   return tasks;
 }
 
+/**
+ * Déplace une tâche dans une liste, à une position précise.
+ *
+ * L'ordre d'affichage est celui du tableau `tasks` : pas de champ `order` à
+ * maintenir, mais l'insertion doit se faire au bon index global. `beforeId`
+ * désigne la tâche devant laquelle déposer ; `null` place en fin de liste.
+ */
+export function moveTask(
+  tasks: Task[],
+  taskId: string,
+  toCol: ColumnId,
+  beforeId: string | null,
+  at: string = nowIso(),
+): Task[] {
+  const current = tasks.find((t) => t.id === taskId);
+  if (!current) return tasks;
+  // Déposer une tâche juste avant elle-même, c'est ne pas la déplacer.
+  if (beforeId === taskId) return tasks;
+
+  const moved = withColumn(current, toCol, at);
+  const rest = tasks.filter((t) => t.id !== taskId);
+
+  const target = beforeId ? rest.findIndex((t) => t.id === beforeId) : -1;
+  if (target !== -1) {
+    rest.splice(target, 0, moved);
+    return rest;
+  }
+
+  // Fin de liste : juste après la dernière tâche de la colonne visée, sinon
+  // en tête quand la colonne est vide.
+  let last = -1;
+  rest.forEach((t, i) => {
+    if (t.col === toCol) last = i;
+  });
+  rest.splice(last + 1, 0, moved);
+  return rest;
+}
+
+/** Critères de tri proposés dans le menu d'une liste. */
+export type SortKey = "prio" | "date";
+
+const PRIO_RANK: Record<Priority, number> = { high: 0, med: 1, low: 2 };
+
+/** Les tâches sans échéance passent après celles qui en ont une. */
+function byDate(a: Task, b: Task): number {
+  if (!a.date && !b.date) return 0;
+  if (!a.date) return 1;
+  if (!b.date) return -1;
+  return a.date.localeCompare(b.date);
+}
+
+/**
+ * Trie les tâches d'une seule liste, sans toucher aux autres : les positions
+ * occupées dans le tableau global sont réutilisées telles quelles.
+ */
+export function sortColumn(tasks: Task[], colId: ColumnId, key: SortKey): Task[] {
+  const slots: number[] = [];
+  tasks.forEach((t, i) => {
+    if (t.col === colId) slots.push(i);
+  });
+  if (slots.length < 2) return tasks;
+
+  const sorted = slots
+    .map((i) => tasks[i])
+    .sort((a, b) =>
+      key === "prio" ? PRIO_RANK[a.prio] - PRIO_RANK[b.prio] || byDate(a, b) : byDate(a, b),
+    );
+
+  const next = [...tasks];
+  slots.forEach((pos, k) => {
+    next[pos] = sorted[k];
+  });
+  return next;
+}
+
 const DAY_MS = 86_400_000;
 
 /**
