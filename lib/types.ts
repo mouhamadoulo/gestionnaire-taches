@@ -18,6 +18,13 @@ export type CategoryKey =
 
 export type Priority = "high" | "med" | "low";
 
+/** Une étape de la checklist d'une tâche. */
+export interface Step {
+  id: string;
+  label: string;
+  done: boolean;
+}
+
 export interface Task {
   id: string;
   col: ColumnId;
@@ -28,6 +35,8 @@ export interface Task {
   prio: Priority;
   date: string;
   tags: string[];
+  /** Découpage de la tâche ; liste vide quand elle n'en a pas besoin. */
+  steps: Step[];
   /** Temps estimé, en minutes. */
   estimate: number;
   /** Temps réellement passé, en minutes (tâches terminées / archivées). */

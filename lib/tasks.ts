@@ -1,9 +1,20 @@
-import type { CategoryKey, ColumnId, Priority, Task } from "./types";
+import type { CategoryKey, ColumnId, Priority, Step, Task } from "./types";
 import { CATEGORIES, DONE_COLS, INBOX_COL } from "./constants";
 
 /** Horodatage courant, en ISO 8601. */
 export function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** Identifiant d'une étape de checklist. */
+export function newStepId(): string {
+  return "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+/** Avancement de la checklist ; `total` à 0 quand la tâche n'en a pas. */
+export function stepProgress(t: Task): { done: number; total: number } {
+  const steps = t.steps || [];
+  return { done: steps.filter((s) => s.done).length, total: steps.length };
 }
 
 /** Une liste terminée déclenche l'horodatage `doneAt`. */
@@ -37,6 +48,20 @@ function str(v: unknown): string {
 
 function num(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : 0;
+}
+
+/** Étapes venues du stockage ou d'un import : libellé obligatoire, id regénéré si besoin. */
+function steps(v: unknown): Step[] {
+  if (!Array.isArray(v)) return [];
+  const out: Step[] = [];
+  for (const entry of v) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    const label = str(e.label).trim();
+    if (!label) continue;
+    out.push({ id: str(e.id) || newStepId(), label, done: e.done === true });
+  }
+  return out;
 }
 
 /** Ne garde une date que si elle est réellement analysable. */
@@ -87,6 +112,7 @@ export function sanitizeTasks(raw: unknown): Task[] {
       prio,
       date: str(e.date),
       tags: Array.isArray(e.tags) ? e.tags.filter((t): t is string => typeof t === "string") : [],
+      steps: steps(e.steps),
       estimate: num(e.estimate),
       spent: num(e.spent),
       learning: str(e.learning),

@@ -3,6 +3,7 @@
 import type { Task } from "@/lib/types";
 import { CAT_COLOR, CAT_LBL, DONE_COLS } from "@/lib/constants";
 import { isDueToday, isOverdue } from "@/lib/filters";
+import { stepProgress } from "@/lib/tasks";
 import { fmtDate, fmtDuration } from "@/lib/utils";
 
 interface Props {
@@ -29,6 +30,8 @@ export function TaskCard({ task, tint, today, onEdit, onDelete, onDragStart, onD
   const prio = PRIO_TINT[task.prio] || PRIO_TINT.med;
   const late = isOverdue(task, today);
   const due = isDueToday(task, today);
+  const steps = stepProgress(task);
+  const stepsPct = steps.total > 0 ? Math.round((steps.done / steps.total) * 100) : 0;
 
   // Barre estimé / passé : 100 % = le plus grand des deux
   const scale = Math.max(task.estimate, task.spent);
@@ -90,6 +93,29 @@ export function TaskCard({ task, tint, today, onEdit, onDelete, onDragStart, onD
           <p className="text-[11.5px] text-t2 leading-[1.5] mb-[9px] line-clamp-2">
             {task.desc}
           </p>
+        )}
+
+        {steps.total > 0 && (
+          <div className="mb-[9px]">
+            <div className="flex items-center justify-between mb-[4px] font-mono text-[10px] text-tm tabular-nums">
+              <span>{steps.done === steps.total ? "☑ Étapes" : "☐ Étapes"}</span>
+              <span style={steps.done === steps.total ? { color: "var(--ok)" } : undefined}>
+                {steps.done}/{steps.total}
+              </span>
+            </div>
+            <div className="track h-[4px] rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-[width] duration-[400ms]"
+                style={{
+                  width: `${stepsPct}%`,
+                  background:
+                    steps.done === steps.total
+                      ? "linear-gradient(90deg, #14b8a6, #14b8a6aa)"
+                      : `linear-gradient(90deg, ${tint}, ${tint}aa)`,
+                }}
+              />
+            </div>
+          </div>
         )}
 
         {task.tags && task.tags.length > 0 && (

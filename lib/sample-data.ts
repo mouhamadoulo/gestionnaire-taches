@@ -2,7 +2,9 @@ import type { Task } from "./types";
 import { isDoneCol } from "./tasks";
 
 /** Les horodatages du jeu d'exemple sont dérivés de l'échéance. */
-type SeedTask = Omit<Task, "createdAt" | "movedAt" | "doneAt">;
+type SeedTask = Omit<Task, "createdAt" | "movedAt" | "doneAt" | "steps"> & {
+  steps?: [string, boolean][];
+};
 
 /** Date de création par défaut des tâches d'exemple sans échéance. */
 const SEED_ORIGIN = "2026-08-10T09:00:00.000Z";
@@ -21,12 +23,20 @@ function shift(date: string, days: number, hour: string): string {
 }
 
 function seed(t: SeedTask): Task {
+  // Identifiants d'étape dérivés de la tâche : stables d'un rendu à l'autre,
+  // contrairement à un Date.now() qui casserait l'hydratation.
+  const steps = (t.steps || []).map(([label, done], i) => ({
+    id: `${t.id}-s${i + 1}`,
+    label,
+    done,
+  }));
+
   if (isDoneCol(t.col) && t.date) {
     const doneAt = shift(t.date, 0, "17:30:00");
-    return { ...t, createdAt: shift(t.date, -14, "09:00:00"), movedAt: doneAt, doneAt };
+    return { ...t, steps, createdAt: shift(t.date, -14, "09:00:00"), movedAt: doneAt, doneAt };
   }
   const createdAt = t.date ? shift(t.date, -7, "09:00:00") : SEED_ORIGIN;
-  return { ...t, createdAt, movedAt: createdAt, doneAt: "" };
+  return { ...t, steps, createdAt, movedAt: createdAt, doneAt: "" };
 }
 
 const SEED: SeedTask[] = [
@@ -35,10 +45,10 @@ const SEED: SeedTask[] = [
   { id: "t3",  col: "inbox",  title: "Idée : automatiser le rapport hebdo",        desc: "Script qui agrège les tickets fermés et envoie le résumé le vendredi.",    cat: "projet",  type: "Note",        prio: "low",  date: "",           tags: ["automatisation", "idée"],      estimate: 0,   spent: 0,   learning: "", notes: "" },
 
   { id: "t4",  col: "todo",   title: "Préparer la revue trimestrielle",            desc: "Slides chiffres Q2, points de blocage, plan Q3.",                          cat: "travail", type: "Tâche",       prio: "high", date: "2026-08-19", tags: ["reporting", "q3"],             estimate: 180, spent: 0,   learning: "", notes: "" },
-  { id: "t5",  col: "todo",   title: "Renouveler le passeport",                    desc: "Prendre rendez-vous en mairie, photos d'identité, justificatif de domicile.", cat: "admin", type: "Rendez-vous", prio: "high", date: "2026-08-21", tags: ["papiers", "urgent"],           estimate: 120, spent: 0,   learning: "", notes: "" },
+  { id: "t5",  col: "todo",   title: "Renouveler le passeport",                    desc: "Prendre rendez-vous en mairie, photos d'identité, justificatif de domicile.", cat: "admin", type: "Rendez-vous", prio: "high", date: "2026-08-21", tags: ["papiers", "urgent"],           estimate: 120, spent: 0,   learning: "", notes: "", steps: [["Photos d'identité", true], ["Justificatif de domicile", true], ["Timbre fiscal", false], ["Rendez-vous en mairie", false]] },
   { id: "t6",  col: "todo",   title: "Chapitre 4 — cours de statistiques",         desc: "Lire le chapitre puis faire les 12 exercices de fin de partie.",           cat: "etude",   type: "Lecture",     prio: "med",  date: "2026-08-18", tags: ["stats", "révisions"],          estimate: 150, spent: 0,   learning: "", notes: "" },
 
-  { id: "t7",  col: "doing",  title: "Migrer la base vers PostgreSQL 16",          desc: "Dump, test de restauration sur staging, plan de rollback écrit.",          cat: "travail", type: "Tâche",       prio: "high", date: "2026-08-17", tags: ["infra", "migration"],          estimate: 300, spent: 0,   learning: "", notes: "" },
+  { id: "t7",  col: "doing",  title: "Migrer la base vers PostgreSQL 16",          desc: "Dump, test de restauration sur staging, plan de rollback écrit.",          cat: "travail", type: "Tâche",       prio: "high", date: "2026-08-17", tags: ["infra", "migration"],          estimate: 300, spent: 0,   learning: "", notes: "", steps: [["Dump de production", true], ["Restauration sur staging", true], ["Vérifier les extensions", false], ["Écrire le plan de rollback", false], ["Fenêtre de bascule", false]] },
   { id: "t8",  col: "doing",  title: "Repeindre le mur du salon",                  desc: "Sous-couche faite. Reste deux couches + finitions autour des prises.",     cat: "maison",  type: "Tâche",       prio: "med",  date: "2026-08-16", tags: ["travaux", "peinture"],         estimate: 240, spent: 0,   learning: "", notes: "" },
 
   { id: "t9",  col: "review", title: "Relire le contrat prestataire",              desc: "Vérifier clause de confidentialité et pénalités de retard avant signature.", cat: "travail", type: "Tâche",     prio: "high", date: "2026-08-15", tags: ["juridique", "contrat"],        estimate: 60,  spent: 0,   learning: "", notes: "" },
