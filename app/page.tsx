@@ -25,6 +25,14 @@ import {
 } from "@/lib/tasks";
 import { backupFilename, buildBackup, downloadJson, parseBackup } from "@/lib/backup";
 import {
+  type ReminderState,
+  askPermission,
+  readOptIn,
+  reminderState,
+  sendReminders,
+  writeOptIn,
+} from "@/lib/reminders";
+import {
   type Filters,
   EMPTY_FILTERS,
   collectTags,
@@ -100,6 +108,10 @@ export default function HomePage() {
      d'un jour de travers. */
   const [today, setToday] = useState("");
 
+  /* Rappels d'échéance. L'état par défaut « off » est aussi celui du rendu
+     serveur, où l'API Notification n'existe pas. */
+  const [reminders, setReminders] = useState<ReminderState>("off");
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [defaultCol, setDefaultCol] = useState<ColumnId>(INBOX_COL);
@@ -141,8 +153,29 @@ export default function HomePage() {
       setNavCollapsed(localStorage.getItem(SIDEBAR_KEY) === "collapsed");
     } catch {}
     setToday(localDay());
+    setReminders(reminderState(readOptIn()));
     setHydrated(true);
   }, []);
+
+  const toggleReminders = useCallback(async () => {
+    const state = reminderState(readOptIn());
+    if (state === "unsupported" || state === "denied") return;
+    if (state === "on") {
+      writeOptIn(false);
+      setReminders("off");
+      return;
+    }
+    const permission = await askPermission();
+    writeOptIn(permission === "granted");
+    setReminders(reminderState(permission === "granted"));
+  }, []);
+
+  /* Un rappel part à l'activation, au changement de jour, et quand une tâche
+     bouge — `sendReminders` ne réveille chaque tâche qu'une fois par jour. */
+  useEffect(() => {
+    if (!hydrated || reminders !== "on") return;
+    sendReminders(tasks, today);
+  }, [hydrated, reminders, today, tasks]);
 
   /* Une session laissée ouverte doit changer de jour : sans cela une tâche du
      lendemain resterait affichée « à faire aujourd'hui ». */
@@ -411,6 +444,8 @@ export default function HomePage() {
           onToggleCollapse={toggleNav}
           onExport={handleExport}
           onImport={handleImport}
+          reminders={reminders}
+          onToggleReminders={toggleReminders}
         />
         <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
           <ThemeToggle className="absolute top-[16px] right-[20px] z-30" />

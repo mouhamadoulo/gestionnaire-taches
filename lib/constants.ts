@@ -100,3 +100,7 @@ export const STORAGE_KEY = "molotask_tasks";
 export const COLUMNS_KEY = "molotask_columns";
 export const THEME_KEY = "molotask_theme";
 export const SIDEBAR_KEY = "molotask_sidebar";
+/** Rappels d'échéance : « on » / « off ». */
+export const REMINDERS_KEY = "molotask_reminders";
+/** `{ idTâche: jour }` des rappels déjà envoyés. */
+export const NOTIFIED_KEY = "molotask_notified";

@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import type { ViewId } from "@/lib/types";
+import type { ReminderState } from "@/lib/reminders";
 
 type SpaceItem = { icon: string; label: string; view: ViewId };
 
@@ -20,17 +21,23 @@ interface NavLinkProps {
   onClick?: () => void;
   /** Infobulle explicite ; sinon le libellé sert d'infobulle une fois replié. */
   title?: string;
+  disabled?: boolean;
 }
 
-function NavLink({ icon, label, active, collapsed, onClick, title }: NavLinkProps) {
+function NavLink({ icon, label, active, collapsed, onClick, title, disabled }: NavLinkProps) {
   const base =
     "group flex items-center gap-[10px] py-[8px] rounded-[9px] cursor-pointer text-[13px] font-medium transition-all mb-px relative w-full text-left bg-transparent border-none";
   const pad = collapsed ? "px-0 justify-center" : "px-[11px]";
-  const state = active ? "text-acc" : "text-tm hover:text-t1";
+  const state = disabled
+    ? "text-td cursor-not-allowed"
+    : active
+    ? "text-acc"
+    : "text-tm hover:text-t1";
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       title={title || (collapsed ? label : undefined)}
       aria-label={collapsed ? label : undefined}
       aria-current={active ? "page" : undefined}
@@ -69,9 +76,43 @@ interface Props {
   onToggleCollapse: () => void;
   onExport: () => void;
   onImport: (file: File) => void;
+  reminders: ReminderState;
+  onToggleReminders: () => void;
 }
 
-export function Sidebar({ view, onView, collapsed, onToggleCollapse, onExport, onImport }: Props) {
+const REMINDER_TEXT: Record<ReminderState, { icon: string; label: string; title: string }> = {
+  on: {
+    icon: "🔔",
+    label: "Rappels actifs",
+    title: "Rappels d'échéance activés — ils n'arrivent que si MoloTask est ouvert. Cliquer pour désactiver.",
+  },
+  off: {
+    icon: "🔕",
+    label: "Rappels",
+    title: "Être prévenu des échéances du jour pendant que MoloTask est ouvert",
+  },
+  denied: {
+    icon: "🔕",
+    label: "Rappels bloqués",
+    title: "Les notifications sont refusées pour ce site — à réautoriser dans les réglages du navigateur",
+  },
+  unsupported: {
+    icon: "🔕",
+    label: "Rappels indisponibles",
+    title: "Ce navigateur ne gère pas les notifications",
+  },
+};
+
+export function Sidebar({
+  view,
+  onView,
+  collapsed,
+  onToggleCollapse,
+  onExport,
+  onImport,
+  reminders,
+  onToggleReminders,
+}: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const pickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,6 +186,21 @@ export function Sidebar({ view, onView, collapsed, onToggleCollapse, onExport, o
             onClick={() => onView(it.view)}
           />
         ))}
+
+        {collapsed ? (
+          <div className="h-px bg-stroke1 my-[10px]" aria-hidden />
+        ) : (
+          <SectionTitle>Échéances</SectionTitle>
+        )}
+        <NavLink
+          icon={REMINDER_TEXT[reminders].icon}
+          label={REMINDER_TEXT[reminders].label}
+          title={REMINDER_TEXT[reminders].title}
+          active={reminders === "on"}
+          collapsed={collapsed}
+          disabled={reminders === "unsupported" || reminders === "denied"}
+          onClick={onToggleReminders}
+        />
 
         {collapsed ? (
           <div className="h-px bg-stroke1 my-[10px]" aria-hidden />
