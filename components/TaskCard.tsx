@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Task } from "@/lib/types";
+import { createPortal } from "react-dom";
+import type { ColumnDef, ColumnId, Task } from "@/lib/types";
 import { CAT_COLOR, CAT_LBL, DONE_COLS, REPEAT_SHORT } from "@/lib/constants";
 import { isDueToday, isOverdue } from "@/lib/filters";
 import { elapsedMinutes, stepProgress } from "@/lib/tasks";
@@ -12,6 +13,8 @@ interface Props {
   tint: string;
   /** « AAAA-MM-JJ », vide avant hydratation : aucune échéance n'est signalée. */
   today: string;
+  /** Destinations du menu « Déplacer vers ». */
+  columns: ColumnDef[];
   selected: boolean;
   /** Au moins une tâche est cochée : les cases restent visibles partout. */
   selectionActive: boolean;
@@ -22,6 +25,8 @@ interface Props {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleTimer: (id: string) => void;
+  /** Même chemin que le glisser-déposer ; `beforeId` nul = fin de liste. */
+  onMoveTask: (taskId: string, toCol: ColumnId, beforeId: string | null) => void;
   onDragStart: (id: string, el: HTMLElement) => void;
   onDragEnd: (el: HTMLElement) => void;
 }
@@ -36,6 +41,7 @@ export function TaskCard({
   task,
   tint,
   today,
+  columns,
   selected,
   selectionActive,
   cursor,
@@ -43,6 +49,7 @@ export function TaskCard({
   onEdit,
   onDelete,
   onToggleTimer,
+  onMoveTask,
   onDragStart,
   onDragEnd,
 }: Props) {
@@ -67,6 +74,42 @@ export function TaskCard({
     el.focus({ preventScroll: true });
     el.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [cursor]);
+
+  /* « Déplacer vers » : au doigt, le glisser-déposer HTML5 n'existe pas, et
+     ouvrir la tâche pour changer une liste fait trois gestes de trop. Le menu
+     part dans un portail : la carte porte `overflow: hidden` et un
+     `backdrop-filter`, qui rognerait aussi bien un menu absolu que fixe. */
+  const [moveOpen, setMoveOpen] = useState(false);
+  const moveBtnRef = useRef<HTMLButtonElement>(null);
+  const [moveAt, setMoveAt] = useState({ top: 0, left: 0 });
+  const destinations = columns.filter((c) => c.id !== task.col);
+
+  const openMove = () => {
+    const r = moveBtnRef.current?.getBoundingClientRect();
+    if (r) {
+      const w = 196;
+      const h = Math.min(248, destinations.length * 33 + 12);
+      const below = r.bottom + 6;
+      setMoveAt({
+        left: Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)),
+        top: below + h > window.innerHeight - 8 ? Math.max(8, r.top - h - 6) : below,
+      });
+    }
+    setMoveOpen(true);
+  };
+
+  // Échap referme le menu avant que la page ne traite la touche.
+  useEffect(() => {
+    if (!moveOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setMoveOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [moveOpen]);
 
   const catColor = CAT_COLOR[task.cat] || "#64748b";
   const catLabel = CAT_LBL[task.cat] || task.cat;
@@ -128,7 +171,8 @@ export function TaskCard({
         style={{ background: `linear-gradient(90deg, transparent, ${tint}, transparent)` }}
       />
 
-      {/* Révélée au survol, permanente dès qu'une sélection est en cours. */}
+      {/* Révélée au survol, permanente dès qu'une sélection est en cours — et
+          toujours visible au tactile, où il n'y a pas de survol. */}
       <input
         type="checkbox"
         checked={selected}
@@ -137,7 +181,9 @@ export function TaskCard({
         onClick={(e) => e.stopPropagation()}
         onChange={() => onSelect(task.id, false)}
         className={`absolute top-[9px] right-[9px] z-10 w-[15px] h-[15px] cursor-pointer accent-acc transition-opacity ${
-          selected || selectionActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          selected || selectionActive
+            ? "opacity-100"
+            : "opacity-100 md:opacity-0 md:group-hover:opacity-100"
         }`}
       />
 
@@ -310,6 +356,23 @@ export function TaskCard({
               </button>
             )}
             <button
+              ref={moveBtnRef}
+              draggable={false}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (moveOpen) setMoveOpen(false);
+                else openMove();
+              }}
+              title="Déplacer vers une autre liste"
+              aria-label={`Déplacer « ${task.title} » vers une autre liste`}
+              aria-haspopup="menu"
+              aria-expanded={moveOpen}
+              className="btn-ghost w-[26px] h-[26px] rounded-[7px] text-[12px] leading-none flex items-center justify-center"
+            >
+              <span aria-hidden>⇄</span>
+            </button>
+            <button
               draggable={false}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
@@ -338,6 +401,43 @@ export function TaskCard({
           </div>
         </div>
       </div>
+
+      {moveOpen &&
+        createPortal(
+          <>
+            {/* Ferme le menu au clic à l'extérieur */}
+            <div className="fixed inset-0 z-[60]" aria-hidden onClick={() => setMoveOpen(false)} />
+            <div
+              role="menu"
+              aria-label={`Déplacer « ${task.title} » vers`}
+              style={{ top: moveAt.top, left: moveAt.left }}
+              className="panel-hi fixed z-[61] w-[196px] max-h-[248px] overflow-y-auto rounded-[11px] py-[5px] shadow-glass"
+            >
+              {destinations.map((c) => (
+                <button
+                  key={c.id}
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    setMoveOpen(false);
+                    /* Sans pointeur, aucune position d'insertion à deviner :
+                       la carte va en fin de liste, comme une action groupée. */
+                    onMoveTask(task.id, c.id, null);
+                  }}
+                  className="w-full text-left px-[12px] py-[7px] text-[11.5px] flex items-center gap-[9px] bg-transparent border-none text-t2 hover:bg-fill2 hover:text-t1 cursor-pointer transition-colors"
+                >
+                  <span
+                    aria-hidden
+                    className="w-[8px] h-[8px] rounded-full flex-shrink-0"
+                    style={{ background: c.tint }}
+                  />
+                  <span className="truncate">{c.label}</span>
+                </button>
+              ))}
+            </div>
+          </>,
+          document.body,
+        )}
     </article>
   );
 }

@@ -400,6 +400,11 @@
 }
 .board-scroll::-webkit-scrollbar-thumb:hover { background: var(--fill-3); background-clip: content-box; }
 
+/* Rangées qu'on fait défiler au doigt (pastilles de liste, tuiles de stats) :
+   la barre ne sert à rien et mange une ligne sur un écran déjà étroit. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { height: 0; width: 0; }
+
 /* Liste d'une colonne : la barre n'apparaît qu'au survol / pendant le défilement */
 .col-scroll::-webkit-scrollbar-thumb { background: transparent; }
 .col-scroll:hover::-webkit-scrollbar-thumb,

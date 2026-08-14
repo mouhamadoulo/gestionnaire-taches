@@ -38,18 +38,18 @@ export function CalendarView({ tasks, columns, onAdd, onEdit }: Props) {
   }, [grid, byDate]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-7 py-7 relative">
+    <div className="flex-1 overflow-y-auto px-4 md:px-7 pt-[62px] md:pt-7 pb-6 md:pb-7 relative">
       <div className="max-w-[1240px] mx-auto stagger">
         {/* En-tête */}
-        <header className="flex items-end justify-between gap-6 flex-wrap mb-6 pr-[46px]">
+        <header className="flex items-end justify-between gap-4 md:gap-6 flex-wrap mb-5 md:mb-6 md:pr-[46px]">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[1.6px] text-tm flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-cool" aria-hidden />
               Échéancier
             </div>
-            <h1 className="font-display italic text-t1 text-[44px] leading-[1.05] tracking-[-1px] mt-[6px]">
+            <h1 className="font-display italic text-t1 text-[30px] md:text-[44px] leading-[1.05] tracking-[-1px] mt-[6px]">
               {MONTHS[cursor.getMonth()]}{" "}
-              <span className="text-tm font-mono not-italic text-[24px] tracking-[-0.5px] tabular-nums">
+              <span className="text-tm font-mono not-italic text-[19px] md:text-[24px] tracking-[-0.5px] tabular-nums">
                 {cursor.getFullYear()}
               </span>
             </h1>
@@ -84,7 +84,7 @@ export function CalendarView({ tasks, columns, onAdd, onEdit }: Props) {
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
           {/* Grille */}
-          <div className="panel xl:col-span-8 rounded-[16px] p-4 relative overflow-hidden">
+          <div className="panel xl:col-span-8 rounded-[16px] p-2 md:p-4 relative overflow-hidden">
             <div className="grid grid-cols-7 gap-1 mb-2">
               {WEEKDAYS.map((w) => (
                 <div
@@ -110,7 +110,7 @@ export function CalendarView({ tasks, columns, onAdd, onEdit }: Props) {
                     onClick={() => setSelected(iso)}
                     aria-pressed={isSelected}
                     aria-label={`${day.date.getDate()} — ${items.length} tâche(s)`}
-                    className={`relative aspect-square min-h-[78px] p-2 rounded-[10px] cursor-pointer transition-all flex flex-col items-stretch text-left border ${
+                    className={`relative aspect-square min-h-[46px] md:min-h-[78px] p-[4px] md:p-2 rounded-[8px] md:rounded-[10px] cursor-pointer transition-all flex flex-col items-stretch text-left border ${
                       isSelected
                         ? "border-acc/60 bg-acc/[0.08]"
                         : isToday
@@ -138,7 +138,9 @@ export function CalendarView({ tasks, columns, onAdd, onEdit }: Props) {
                         </span>
                       )}
                     </div>
-                    <div className="flex flex-col gap-[3px] mt-[5px] overflow-hidden">
+                    {/* Sur un téléphone, une case fait 45 px : le décompte suffit,
+                        les titres partent dans le détail du jour juste dessous. */}
+                    <div className="hidden md:flex flex-col gap-[3px] mt-[5px] overflow-hidden">
                       {items.slice(0, 3).map((t) => (
                         <span
                           key={t.id}
@@ -164,7 +166,7 @@ export function CalendarView({ tasks, columns, onAdd, onEdit }: Props) {
           </div>
 
           {/* Détail du jour */}
-          <aside className="panel-hi xl:col-span-4 rounded-[16px] p-5 relative overflow-hidden">
+          <aside className="panel-hi xl:col-span-4 rounded-[16px] p-4 md:p-5 relative overflow-hidden">
             <div
               aria-hidden
               className="absolute inset-x-0 top-0 h-[1px]"

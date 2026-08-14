@@ -51,7 +51,7 @@ export function FilterMenu({ open, filters, tags, overdueCount, onChange, onClos
         ref={panelRef}
         role="dialog"
         aria-label="Filtrer les tâches"
-        className="panel-hi absolute right-0 top-[calc(100%+8px)] z-50 w-[330px] max-h-[62vh] overflow-y-auto rounded-[13px] p-[15px] shadow-glass"
+        className="panel-hi absolute right-0 top-[calc(100%+8px)] z-50 w-[330px] max-w-[calc(100vw-24px)] max-h-[62vh] overflow-y-auto rounded-[13px] p-[15px] shadow-glass"
       >
         <div className="flex items-center justify-between mb-[13px]">
           <span className="font-mono text-[9.5px] uppercase tracking-[1.6px] text-tm">

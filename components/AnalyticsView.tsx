@@ -55,14 +55,14 @@ export function AnalyticsView({ tasks, onEdit }: Props) {
   const maxSpent = ranked[0]?.spent || 0;
 
   return (
-    <div className="flex-1 overflow-y-auto px-7 py-7 relative">
-      <div className="max-w-[1240px] mx-auto stagger flex flex-col gap-6">
-        <header className="pr-[46px]">
+    <div className="flex-1 overflow-y-auto px-4 md:px-7 pt-[62px] md:pt-7 pb-6 md:pb-7 relative">
+      <div className="max-w-[1240px] mx-auto stagger flex flex-col gap-5 md:gap-6">
+        <header className="md:pr-[46px]">
           <div className="font-mono text-[10px] uppercase tracking-[1.6px] text-tm flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-acc animate-breathe" aria-hidden />
             Rétrospective · MoloTask
           </div>
-          <h1 className="font-display italic text-t1 text-[44px] leading-[1.05] tracking-[-1px] mt-[6px]">
+          <h1 className="font-display italic text-t1 text-[30px] md:text-[44px] leading-[1.05] tracking-[-1px] mt-[6px]">
             Analytiques.
           </h1>
           <p className="text-t2 text-[13px] mt-2 max-w-[560px] leading-[1.55]">
@@ -216,8 +216,10 @@ export function AnalyticsView({ tasks, onEdit }: Props) {
                 </span>
               </div>
 
-              <div className="panel rounded-[16px] overflow-hidden">
-                <div className="grid grid-cols-12 gap-3 px-5 py-3 font-mono text-[9px] uppercase tracking-[1.4px] text-td border-b border-stroke1">
+              {/* Cinq colonnes ne se comprimant pas, le classement se fait
+                  défiler latéralement plutôt que de s'écraser. */}
+              <div className="panel rounded-[16px] overflow-hidden overflow-x-auto">
+                <div className="grid grid-cols-12 gap-3 px-5 py-3 min-w-[560px] font-mono text-[9px] uppercase tracking-[1.4px] text-td border-b border-stroke1">
                   <div className="col-span-1">Rang</div>
                   <div className="col-span-5">Tâche</div>
                   <div className="col-span-2">Catégorie</div>
@@ -243,7 +245,7 @@ export function AnalyticsView({ tasks, onEdit }: Props) {
                         <button
                           type="button"
                           onClick={() => onEdit(t.id)}
-                          className="grid grid-cols-12 gap-3 px-5 py-[14px] w-full text-left items-center bg-transparent border-none hover:bg-fill1 cursor-pointer transition-colors relative"
+                          className="grid grid-cols-12 gap-3 px-5 py-[14px] min-w-[560px] w-full text-left items-center bg-transparent border-none hover:bg-fill1 cursor-pointer transition-colors relative"
                         >
                           <div className="col-span-1 font-display italic text-[24px] leading-none text-tm tabular-nums">
                             {String(i + 1).padStart(2, "0")}

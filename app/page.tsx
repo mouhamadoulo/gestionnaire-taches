@@ -100,6 +100,10 @@ export default function HomePage() {
     viewRef.current = view;
   }, [view]);
   const [navCollapsed, setNavCollapsed] = useState(false);
+  /* Tiroir de navigation : n'existe que sous `md`, où la barre latérale sort
+     de l'écran. Distinct du repli, qui est un réglage du bureau. */
+  const [navOpen, setNavOpen] = useState(false);
+  const closeNav = useCallback(() => setNavOpen(false), []);
 
   /* Date du jour au format « AAAA-MM-JJ », renseignée après hydratation : le
      serveur ne connaît pas le fuseau du navigateur et signalerait des retards
@@ -560,6 +564,7 @@ export default function HomePage() {
       if (e.key === "Escape") {
         setModalOpen(false);
         setColModalOpen(false);
+        setNavOpen(false);
         clearSelection();
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
@@ -652,13 +657,37 @@ export default function HomePage() {
           onView={setView}
           collapsed={navCollapsed}
           onToggleCollapse={toggleNav}
+          mobileOpen={navOpen}
+          onCloseMobile={closeNav}
           onExport={handleExport}
           onImport={handleImport}
           reminders={reminders}
           onToggleReminders={toggleReminders}
         />
+
+        {/* Voile du tiroir */}
+        {navOpen && (
+          <div
+            aria-hidden
+            onClick={closeNav}
+            className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]"
+          />
+        )}
+
         <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
-          <ThemeToggle className="absolute top-[16px] right-[20px] z-30" />
+          {/* Ouverture du tiroir — toutes vues confondues, d'où sa position
+              flottante plutôt qu'un bouton dans la barre du tableau. */}
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            title="Ouvrir le menu"
+            aria-label="Ouvrir le menu"
+            aria-expanded={navOpen}
+            className="md:hidden absolute top-[16px] left-[16px] z-30 w-[34px] h-[34px] rounded-[10px] flex items-center justify-center text-[15px] leading-none text-t2 hover:text-acc bg-fill1 border border-stroke1 cursor-pointer transition-all"
+          >
+            <span aria-hidden>☰</span>
+          </button>
+          <ThemeToggle className="hidden md:flex absolute top-[16px] right-[20px] z-30" />
           {view === "board" && (
             <>
               <TopBar

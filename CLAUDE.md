@@ -40,9 +40,10 @@ Les tests vivent dans `lib/__tests__/` et `components/__tests__/` — **pas** da
 `tsconfig.json` laisse le JSX à Next (`"jsx": "preserve"`), d'où le `esbuild: { jsx: 'automatic' }`
 de la config Vitest : hors build Next, personne d'autre ne transforme le JSX.
 
-Reste hors couverture : les vues (`Dashboard`, `CalendarView`, `AnalyticsView`) et le
-glisser-déposer, dont la géométrie ne se rejoue pas honnêtement sous jsdom — il se vérifie au
-navigateur.
+Reste hors couverture : les vues (`Dashboard`, `CalendarView`, `AnalyticsView`), le
+glisser-déposer et le responsive, dont la géométrie ne se rejoue pas honnêtement sous jsdom — ils
+se vérifient au navigateur (390×844 et 1440×900). Ce qui reste testable dans le mobile l'est :
+`ColumnTabs` (compteurs filtrés, liste courante) et le menu « Déplacer vers » de `TaskCard`.
 
 Écrire un test = fixer une décision déjà prise, pas décrire l'implémentation : `doneAt` effacé
 quand une tâche est rouverte, échéance récurrente qui roule au-delà de `today`, colonne
@@ -80,7 +81,8 @@ components/
   ThemeToggle.tsx   # Clair / Sombre segmented control
   TopBar.tsx        # Title, search, "+ Nouvelle tâche"
   StatsBar.tsx      # Five summary counters (derived from tasks)
-  Board.tsx         # Horizontal scroll container; owns drag state via useRef
+  Board.tsx         # Horizontal scroll container; owns drag state + the mobile active column
+  ColumnTabs.tsx    # Mobile-only list picker (chips) shown above the board
   Column.tsx        # One kanban column (header + ⋯ menu, drop zone, task list or empty hint)
   TaskCard.tsx      # One task card (badges, title, desc, tags, estimate/spent bar, footer)
   TaskModal.tsx     # Create/edit task dialog (self-contained form state, focus trap)
@@ -257,7 +259,8 @@ replacement is snapshotted for undo.
 ### State ownership
 
 - **`HomePage`** owns `tasks`, `columns`, `search`, `view`, and modal state. It passes handlers down.
-- **`Board`** owns only the transient drag ID (`useRef`) — not the dragged task's data.
+- **`Board`** owns only the transient drag ID (`useRef`) and the mobile active list — not the
+  dragged task's data.
 - **`TaskModal` / `ColumnModal`** own their own form state; each resets via `useEffect` whenever
   `open` or `editing` changes.
 - **Theme** lives on `<html data-theme>`; `useTheme` reads and writes it plus `localStorage`.
@@ -283,8 +286,40 @@ Rules when adding UI:
   light theme for contrast. Category tints (`CAT_COLOR`) are picked to work on both backgrounds.
 - Inline `style` is still fine for genuinely dynamic values (a category color, a bar width).
 
+### Écran étroit
+
+One breakpoint: **`md` (768px)**. Above it nothing changed; below it the desktop board does not
+survive as-is — 286px columns in a horizontal scroller, hover-only affordances and HTML5 drag and
+drop all assume a mouse.
+
+- **Navigation** — `Sidebar` is `fixed … -translate-x-full md:relative`, opened by the `☰` button
+  `HomePage` floats at the top left of `<main>` (every view has one, which is why it does not live
+  in `TopBar`). `navOpen` is separate from `navCollapsed`: the drawer is a mobile state, the
+  collapse a desktop setting, and `compact = collapsed && !mobileOpen` keeps the drawer from
+  opening as a column of bare icons. Escape, the veil and the `✕` all close it.
+- **One list at a time** — `ColumnTabs` (chips + counters, `md:hidden`) picks the column `Board`
+  shows. `Board` owns `activeId` and re-resolves it every render (`find(id) ?? columns[0]`), like
+  the drag id: a deleted or imported-over list leaves no dead state. Every `Column` stays mounted,
+  the inactive ones just carry `hidden md:flex` — menus, keyboard cursor and desktop drag do not
+  rebuild on each switch. Counts come from the *filtered* tasks, or a chip would announce seven
+  tasks and open on nothing.
+- **Moving a task** — HTML5 drag and drop does not exist on touch, so `TaskCard` has a `⇄` menu
+  listing the other lists and calling the same `onMove(id, col, null)`. It renders through
+  `createPortal`: the card has `overflow: hidden` and a `backdrop-filter`, which clips an absolute
+  *and* a fixed child. Position is computed from the button's rect and flips above when the bottom
+  is too close.
+- The card checkbox is `opacity-100 md:opacity-0 md:group-hover:opacity-100` — there is no hover to
+  reveal it with.
+- Rows that cannot shrink honestly are scrolled instead of squeezed: `StatsBar` tiles, the chips,
+  the Analytics ranking (`min-w-[560px]`). `.no-scrollbar` hides the bar on those.
+
 ### Layout gotcha
 
 Percentage-height bars (the dashboard flow ribbon, the monthly chart) need an unbroken chain of
 definite heights: the flex row must be `items-stretch` and each wrapper must carry `h-full`,
 otherwise the bars collapse to a hairline.
+
+Tailwind classes of the same family do not fight in the order you wrote them, but in the order
+they appear in the generated CSS: `relative` beats `fixed`, `hidden` beats `flex`, whatever the
+class string says. That is why the sidebar carries `fixed md:relative` and not a leftover
+`relative`, and why a responsive override is always the `md:` one.

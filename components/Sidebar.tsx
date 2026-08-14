@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import type { ViewId } from "@/lib/types";
 import type { ReminderState } from "@/lib/reminders";
+import { ThemeToggle } from "./ThemeToggle";
 
 type SpaceItem = { icon: string; label: string; view: ViewId };
 
@@ -74,6 +75,9 @@ interface Props {
   onView: (v: ViewId) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  /** Tiroir ouvert — sous `md` seulement, où la barre sort de l'écran. */
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
   onExport: () => void;
   onImport: (file: File) => void;
   reminders: ReminderState;
@@ -108,12 +112,18 @@ export function Sidebar({
   onView,
   collapsed,
   onToggleCollapse,
+  mobileOpen,
+  onCloseMobile,
   onExport,
   onImport,
   reminders,
   onToggleReminders,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+
+  /* Le repli est un réglage du bureau : dans le tiroir, la place ne manque pas
+     et une colonne d'icônes seules serait illisible. */
+  const compact = collapsed && !mobileOpen;
 
   const pickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -124,9 +134,13 @@ export function Sidebar({
 
   return (
     <aside
-      className={`${
-        collapsed ? "w-[68px]" : "w-[228px]"
-      } flex flex-col py-[22px] flex-shrink-0 z-20 relative plate-sidebar transition-[width] duration-200 ease-out`}
+      /* Hors écran et par-dessus le contenu tant qu'on est sous `md` ; panneau
+         ordinaire du flux à partir de là. */
+      /* `md:relative` et non `md:static` : le bouton de repli est posé en
+         absolu sur le bord droit du panneau. */
+      className={`fixed md:relative inset-y-0 left-0 w-[248px] z-50 md:z-20 md:translate-x-0 ${
+        mobileOpen ? "translate-x-0" : "-translate-x-full"
+      } ${compact ? "md:w-[68px]" : "md:w-[228px]"} flex flex-col py-[22px] flex-shrink-0 plate-sidebar transition-transform md:transition-[width] duration-200 ease-out`}
     >
       {/* Repli / dépli — chevauche le bord droit du panneau */}
       <button
@@ -135,18 +149,29 @@ export function Sidebar({
         title={collapsed ? "Déplier le menu (⌘B)" : "Replier le menu (⌘B)"}
         aria-label={collapsed ? "Déplier le menu" : "Replier le menu"}
         aria-expanded={!collapsed}
-        className="absolute -right-[11px] top-[26px] z-30 w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] leading-none text-t2 hover:text-acc bg-surface border border-stroke2 hover:border-acc/50 shadow-glass cursor-pointer transition-all"
+        className="absolute -right-[11px] top-[26px] z-30 w-[22px] h-[22px] rounded-full hidden md:flex items-center justify-center text-[10px] leading-none text-t2 hover:text-acc bg-surface border border-stroke2 hover:border-acc/50 shadow-glass cursor-pointer transition-all"
       >
         <span aria-hidden>{collapsed ? "›" : "‹"}</span>
+      </button>
+
+      {/* Fermeture du tiroir — le voile et Échap font la même chose */}
+      <button
+        type="button"
+        onClick={onCloseMobile}
+        title="Fermer le menu"
+        aria-label="Fermer le menu"
+        className="md:hidden absolute right-[12px] top-[18px] z-30 w-[30px] h-[30px] rounded-[9px] flex items-center justify-center text-[13px] leading-none text-t2 hover:text-acc bg-fill1 border border-stroke1 cursor-pointer transition-all"
+      >
+        <span aria-hidden>✕</span>
       </button>
 
       {/* Marque */}
       <button
         type="button"
         onClick={() => onView("dashboard")}
-        title={collapsed ? "MoloTask" : undefined}
+        title={compact ? "MoloTask" : undefined}
         className={`${
-          collapsed ? "px-0 justify-center" : "px-[18px]"
+          compact ? "px-0 justify-center" : "px-[18px]"
         } pb-7 flex items-center gap-[11px] relative bg-transparent border-none cursor-pointer text-left`}
       >
         <div
@@ -158,7 +183,7 @@ export function Sidebar({
         >
           <span className="relative z-10">✓</span>
         </div>
-        {!collapsed && (
+        {!compact && (
           <div className="flex flex-col leading-tight">
             <span className="font-display italic text-t1 text-[19px] tracking-[-0.5px]">
               MoloTask
@@ -170,8 +195,8 @@ export function Sidebar({
         )}
       </button>
 
-      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? "px-[14px]" : "px-[10px]"}`}>
-        {collapsed ? (
+      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${compact ? "px-[14px]" : "px-[10px]"}`}>
+        {compact ? (
           <div className="h-px bg-stroke1 mb-[10px]" aria-hidden />
         ) : (
           <SectionTitle>Espace</SectionTitle>
@@ -182,12 +207,15 @@ export function Sidebar({
             icon={it.icon}
             label={it.label}
             active={view === it.view}
-            collapsed={collapsed}
-            onClick={() => onView(it.view)}
+            collapsed={compact}
+            onClick={() => {
+              onView(it.view);
+              onCloseMobile();
+            }}
           />
         ))}
 
-        {collapsed ? (
+        {compact ? (
           <div className="h-px bg-stroke1 my-[10px]" aria-hidden />
         ) : (
           <SectionTitle>Échéances</SectionTitle>
@@ -197,12 +225,12 @@ export function Sidebar({
           label={REMINDER_TEXT[reminders].label}
           title={REMINDER_TEXT[reminders].title}
           active={reminders === "on"}
-          collapsed={collapsed}
+          collapsed={compact}
           disabled={reminders === "unsupported" || reminders === "denied"}
           onClick={onToggleReminders}
         />
 
-        {collapsed ? (
+        {compact ? (
           <div className="h-px bg-stroke1 my-[10px]" aria-hidden />
         ) : (
           <SectionTitle>Données</SectionTitle>
@@ -210,14 +238,14 @@ export function Sidebar({
         <NavLink
           icon="↓"
           label="Exporter"
-          collapsed={collapsed}
+          collapsed={compact}
           onClick={onExport}
           title="Télécharger tâches et listes au format JSON"
         />
         <NavLink
           icon="↑"
           label="Importer"
-          collapsed={collapsed}
+          collapsed={compact}
           onClick={() => fileRef.current?.click()}
           title="Remplacer les données par un fichier de sauvegarde"
         />
@@ -232,12 +260,18 @@ export function Sidebar({
         />
       </nav>
 
+      {/* Thème — la bascule flottante du coin haut droit n'existe pas ici */}
+      <div className="md:hidden mt-3 px-[10px] flex items-center gap-[10px]">
+        <ThemeToggle />
+        <span className="text-tm text-[11px]">Thème</span>
+      </div>
+
       {/* Carte utilisateur */}
       <div
         className={`mt-3 rounded-[10px] glass-soft flex items-center gap-[10px] ${
-          collapsed ? "mx-[14px] p-[6px] justify-center" : "mx-[10px] p-[10px]"
+          compact ? "mx-[14px] p-[6px] justify-center" : "mx-[10px] p-[10px]"
         }`}
-        title={collapsed ? "Mouhamadou · En ligne" : undefined}
+        title={compact ? "Mouhamadou · En ligne" : undefined}
       >
         <div
           className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-white font-bold text-[13px] flex-shrink-0"
@@ -248,7 +282,7 @@ export function Sidebar({
         >
           M
         </div>
-        {!collapsed && (
+        {!compact && (
           <div className="min-w-0">
             <div className="text-t1 text-[12px] font-semibold truncate">Mouhamadou</div>
             <div className="flex items-center gap-1 text-tm text-[10px]">

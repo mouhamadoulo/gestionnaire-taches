@@ -11,8 +11,10 @@ définitivement perdu.
 > 1 → 4 → 2 → 3 (l'annulation avant l'export/import, pour que l'import soit lui aussi
 > annulable).
 >
-> **Tier 2 livré** sur `feat/tier-2-daily-use` (items 5 à 9). Prochaine étape : Tier 3,
-> en commençant par la sélection multiple (10) ou le responsive mobile (11).
+> **Tier 2 livré** sur `feat/tier-2-daily-use` (items 5 à 9).
+>
+> **Tier 3 en cours** sur `feat/tier-3-finition`, dans l'ordre 12 → 10 → 13 → 11. Restent les
+> modèles de tâches (14) et le PWA (15).
 
 ---
 
@@ -113,21 +115,26 @@ session dépend du PWA (15) ou d'un serveur (16).
 
 ## Tier 3 — Finition
 
-### 10. Sélection multiple et actions groupées
-Déplacer, supprimer ou taguer plusieurs tâches d'un coup.
+### 10. Sélection multiple et actions groupées — fait
+Case au survol, `Ctrl/⌘+clic`, `Maj+clic` pour une plage (dans une seule colonne). `BulkBar`
+déplace, tague ou supprime le lot ; glisser une carte du lot emmène tout. Pas de confirmation :
+`UndoToast` est le filet.
 
-### 11. Responsive mobile
-`Board` est un scroll horizontal pensé pour le bureau. Sur téléphone : une colonne à la fois plus
-un sélecteur de liste.
+### 11. Responsive mobile — fait
+Point de rupture unique, `md` (768 px). En dessous : barre latérale en tiroir (bouton `☰` flottant,
+voile, Échap), sélecteur de listes en pastilles (`ColumnTabs`) et une seule colonne pleine largeur,
+menu « Déplacer vers » sur la carte à la place du glisser-déposer — inexistant au tactile — cases à
+cocher toujours visibles, barres de stats et classement en défilement latéral plutôt qu'écrasés.
+Les trois autres vues ont reçu la même passe (paddings, titres, grille du calendrier).
 
-### 12. Modales internes au lieu de `confirm()`
-Les `confirm()` natifs (`app/page.tsx:93`, `app/page.tsx:158`) cassent le thème et ignorent les
-tokens de `globals.css`.
+### 12. Modales internes au lieu de `confirm()` — fait
+`useConfirm` + `ConfirmModal` : `ask()` rend une promesse, `notify()` remplace `alert()`. Les
+dialogues natifs ignoraient `data-theme` et tous les tokens de `globals.css`.
 
-### 13. Accessibilité clavier
-Déplacer une tâche exige aujourd'hui la souris. Raccourcis proposés : `j` / `k` pour naviguer,
-`1`–`7` pour envoyer la carte sélectionnée dans une liste. À ajouter au gestionnaire de touches
-existant (`app/page.tsx:165`).
+### 13. Accessibilité clavier — fait
+Curseur de carte à tabulation mouvante : `j k h l` et les flèches naviguent, `x` coche, `Entrée`
+ouvre, `Suppr` supprime, `1`–`9` envoient dans la n-ième liste (neuf, les listes étant des
+données). Tout passe par `nextCursor` (`lib/board-cursor.ts`), pur et testé.
 
 ### 14. Modèles de tâches
 Pré-remplir catégorie, estimation et tags pour les tâches répétitives de même forme.

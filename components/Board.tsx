@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ColumnDef, ColumnId, Task } from "@/lib/types";
 import type { SortKey } from "@/lib/tasks";
 import { type Filters, hasFilters, matchesTask } from "@/lib/filters";
 import { Column } from "./Column";
+import { ColumnTabs } from "./ColumnTabs";
 
 interface Props {
   tasks: Task[];
@@ -54,6 +55,11 @@ export function Board({
   onSortCol,
 }: Props) {
   const dragIdRef = useRef<string | null>(null);
+  /* Liste montrée sous `md`, où le tableau n'en affiche qu'une. Transitoire,
+     comme l'identifiant de glisser : une liste supprimée ou remplacée par un
+     import ne doit pas laisser d'état mort, d'où la résolution à chaque rendu
+     plutôt qu'un effet de synchronisation. */
+  const [activeId, setActiveId] = useState<ColumnId | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const edgeDirRef = useRef(0);
   const rafRef = useRef<number | null>(null);
@@ -137,55 +143,76 @@ export function Board({
   const filtering = q.length > 0 || hasFilters(filters);
   const filtered = filtering ? tasks.filter((t) => matchesTask(t, q, filters, today)) : tasks;
 
-  return (
-    <div
-      ref={scrollerRef}
-      onDragOver={handleBoardDragOver}
-      onDragLeave={stopEdgeScroll}
-      onDrop={stopEdgeScroll}
-      className="board-scroll flex-1 overflow-x-auto overflow-y-hidden px-7 pt-6 pb-3 relative"
-    >
-      <div className="flex gap-[16px] h-full min-w-fit stagger">
-        {columns.map((col, i) => (
-          <Column
-            key={col.id}
-            col={col}
-            tasks={filtered.filter((t) => t.col === col.id)}
-            filtering={filtering}
-            today={today}
-            canMoveLeft={i > 0}
-            canMoveRight={i < columns.length - 1}
-            onAdd={onAdd}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onToggleTimer={onToggleTimer}
-            selected={selected}
-            cursor={cursor}
-            onSelect={onSelect}
-            onDrop={handleDrop}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onRenameCol={onRenameCol}
-            onMoveCol={onMoveCol}
-            onDeleteCol={onDeleteCol}
-            onSortCol={onSortCol}
-          />
-        ))}
+  const active = columns.find((c) => c.id === activeId) ?? columns[0];
 
-        <button
-          type="button"
-          onClick={onAddCol}
-          title="Créer une nouvelle liste"
-          className="dashed w-[286px] flex-shrink-0 flex flex-col items-center justify-center gap-2 rounded-[14px] py-8 self-start text-tm hover:text-t1 cursor-pointer transition-all"
-        >
-          <span
-            aria-hidden
-            className="text-[16px] w-[28px] h-[28px] rounded-full flex items-center justify-center bg-acc/[0.10] text-acc border border-dashed border-acc/50"
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
+      <ColumnTabs
+        columns={columns}
+        tasks={filtered}
+        active={active?.id ?? ""}
+        onSelect={setActiveId}
+        onAdd={onAddCol}
+      />
+
+      <div
+        ref={scrollerRef}
+        onDragOver={handleBoardDragOver}
+        onDragLeave={stopEdgeScroll}
+        onDrop={stopEdgeScroll}
+        className="board-scroll flex-1 min-h-0 overflow-x-auto overflow-y-hidden px-4 md:px-7 pt-3 md:pt-6 pb-3 relative"
+      >
+        <div className="flex gap-[16px] h-full md:min-w-fit stagger">
+          {columns.map((col, i) => (
+            <Column
+              key={col.id}
+              col={col}
+              /* Une seule liste à l'écran sous `md`. Les autres restent dans le
+                 DOM : leurs menus, le curseur clavier et le glisser-déposer du
+                 bureau n'ont pas à se reconstruire à chaque bascule. */
+              className={`w-full flex-shrink-0 md:w-[286px] ${
+                col.id === active?.id ? "flex" : "hidden md:flex"
+              }`}
+              tasks={filtered.filter((t) => t.col === col.id)}
+              filtering={filtering}
+              today={today}
+              columns={columns}
+              canMoveLeft={i > 0}
+              canMoveRight={i < columns.length - 1}
+              onAdd={onAdd}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onToggleTimer={onToggleTimer}
+              onMoveTask={onMove}
+              selected={selected}
+              cursor={cursor}
+              onSelect={onSelect}
+              onDrop={handleDrop}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onRenameCol={onRenameCol}
+              onMoveCol={onMoveCol}
+              onDeleteCol={onDeleteCol}
+              onSortCol={onSortCol}
+            />
+          ))}
+
+          {/* Sous `md`, la création de liste passe par la pastille ＋ du sélecteur */}
+          <button
+            type="button"
+            onClick={onAddCol}
+            title="Créer une nouvelle liste"
+            className="dashed w-[286px] flex-shrink-0 hidden md:flex flex-col items-center justify-center gap-2 rounded-[14px] py-8 self-start text-tm hover:text-t1 cursor-pointer transition-all"
           >
-            ＋
-          </span>
-          <span className="font-mono text-[10px] uppercase tracking-[1.2px]">Nouvelle liste</span>
-        </button>
+            <span
+              aria-hidden
+              className="text-[16px] w-[28px] h-[28px] rounded-full flex items-center justify-center bg-acc/[0.10] text-acc border border-dashed border-acc/50"
+            >
+              ＋
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-[1.2px]">Nouvelle liste</span>
+          </button>
+        </div>
       </div>
     </div>
   );

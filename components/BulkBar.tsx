@@ -56,7 +56,7 @@ export function BulkBar({ count, columns, tags, onMove, onDelete, onTag, onClear
   };
 
   return (
-    <div className="fixed bottom-[18px] left-1/2 -translate-x-1/2 z-[90]">
+    <div className="fixed bottom-[18px] left-1/2 -translate-x-1/2 z-[90] max-w-[calc(100vw-16px)]">
       {menu === "move" && (
         <div
           role="menu"
@@ -112,7 +112,8 @@ export function BulkBar({ count, columns, tags, onMove, onDelete, onTag, onClear
         </div>
       )}
 
-      <div className="plate-topbar flex items-center gap-[8px] rounded-[13px] px-[14px] py-[9px] shadow-glass">
+      {/* La barre passe à la ligne plutôt que de déborder de l'écran */}
+      <div className="plate-topbar flex flex-wrap justify-center items-center gap-x-[8px] gap-y-[6px] rounded-[13px] px-[14px] py-[9px] shadow-glass">
         <span className="text-[12px] font-semibold text-t1 whitespace-nowrap">
           {count} tâche{count > 1 ? "s" : ""} sélectionnée{count > 1 ? "s" : ""}
         </span>

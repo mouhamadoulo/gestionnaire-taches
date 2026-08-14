@@ -25,11 +25,13 @@ export function StatsBar({ tasks }: { tasks: Task[] }) {
   ];
 
   return (
-    <div className="px-7 py-[12px] flex gap-3 flex-shrink-0 relative border-b border-stroke1">
+    /* Cinq tuiles côte à côte ne tiennent pas sur un téléphone : elles gardent
+       leur largeur et la rangée se fait défiler au doigt. */
+    <div className="px-4 md:px-7 py-[10px] md:py-[12px] flex gap-2 md:gap-3 overflow-x-auto no-scrollbar flex-shrink-0 relative border-b border-stroke1">
       {stats.map((s, i) => (
         <div
           key={s.label}
-          className="flex items-center gap-[10px] px-[14px] py-[9px] rounded-[11px] glass-soft flex-1 min-w-0 transition-all hover:border-stroke2"
+          className="flex items-center gap-[10px] px-[12px] md:px-[14px] py-[9px] rounded-[11px] glass-soft w-[146px] flex-shrink-0 md:w-auto md:flex-1 md:flex-shrink min-w-0 transition-all hover:border-stroke2"
         >
           <div
             className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-[15px] flex-shrink-0 relative"
