@@ -1,4 +1,4 @@
-import type { CategoryKey, ColumnDef, ColumnId, Repeat } from "./types";
+import type { CategoryKey, ColumnDef, ColumnId, Priority, Repeat } from "./types";
 
 /**
  * Colonnes livrées avec l'application. Elles servent de graine : dès la
@@ -90,6 +90,8 @@ export const REPEAT_SHORT: Record<Repeat, string> = {
 
 export const REPEATS = Object.keys(REPEAT_LBL) as Repeat[];
 
+export const PRIORITIES: Priority[] = ["high", "med", "low"];
+
 /** Colonnes considérées comme terminées — rétrospective + temps passé. */
 export const DONE_COLS: ColumnId[] = ["done", "arch"];
 
@@ -98,6 +100,7 @@ export const ACTIVE_COLS: ColumnId[] = ["todo", "doing", "review"];
 
 export const STORAGE_KEY = "molotask_tasks";
 export const COLUMNS_KEY = "molotask_columns";
+export const TEMPLATES_KEY = "molotask_templates";
 export const THEME_KEY = "molotask_theme";
 export const SIDEBAR_KEY = "molotask_sidebar";
 /** Rappels d'échéance : « on » / « off ». */

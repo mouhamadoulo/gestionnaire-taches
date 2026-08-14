@@ -80,6 +80,23 @@ export type TaskDraft = Omit<
   "id" | "createdAt" | "movedAt" | "doneAt" | "startedAt"
 > & { id?: string };
 
+/**
+ * Modèle de tâche : la forme réutilisable d'une tâche qui revient souvent.
+ *
+ * `fields` ne porte que ce qui se répète. L'échéance, le temps passé et la
+ * rétrospective appartiennent à une occurrence précise : les recopier
+ * fabriquerait des tâches déjà datées et déjà commentées.
+ */
+export interface TaskTemplate {
+  id: string;
+  /** Nom affiché sur la pastille ; repli sur le titre à l'enregistrement. */
+  name: string;
+  fields: Pick<
+    Task,
+    "title" | "desc" | "cat" | "type" | "prio" | "tags" | "steps" | "repeat" | "estimate"
+  >;
+}
+
 export interface ColumnDef {
   id: ColumnId;
   label: string;

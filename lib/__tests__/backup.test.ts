@@ -7,11 +7,15 @@ import { task } from "./factory";
 describe("buildBackup", () => {
   it("estampille le format et embarque les données telles quelles", () => {
     const tasks = [task({ id: "a" })];
-    const backup = buildBackup(tasks, DEFAULT_COLS);
+    const templates = [
+      { id: "m1", name: "Revue", fields: { title: "Revue", desc: "", cat: "travail" as const, type: "Tâche", prio: "med" as const, tags: [], steps: [], repeat: "" as const, estimate: 0 } },
+    ];
+    const backup = buildBackup(tasks, DEFAULT_COLS, templates);
 
     expect(backup).toMatchObject({ app: "molotask", version: BACKUP_VERSION });
     expect(backup.tasks).toBe(tasks);
     expect(backup.columns).toBe(DEFAULT_COLS);
+    expect(backup.templates).toBe(templates);
     expect(Number.isNaN(Date.parse(backup.exportedAt))).toBe(false);
   });
 });
@@ -76,6 +80,27 @@ describe("parseBackup", () => {
     expect(() => parseBackup(JSON.stringify({ app: "molotask" }))).toThrow(
       "Sauvegarde illisible : aucune liste de tâches trouvée.",
     );
+  });
+
+  it("relit les modèles et les nettoie au passage", () => {
+    const withTemplates = JSON.stringify({
+      app: "molotask",
+      tasks: [{ id: "a", title: "Relire" }],
+      columns: [],
+      templates: [
+        { id: "m1", name: "Revue", fields: { title: "Revue", prio: "urgente" } },
+        { name: "   " },
+      ],
+    });
+    const { templates } = parseBackup(withTemplates);
+    expect(templates).toHaveLength(1);
+    expect(templates[0].fields.prio).toBe("med");
+  });
+
+  it("accepte une sauvegarde d'avant les modèles", () => {
+    // Le champ est arrivé après coup : un fichier plus ancien reste lisible,
+    // ce qui vaut mieux que de refuser la seule sauvegarde de l'utilisateur.
+    expect(parseBackup(valid).templates).toEqual([]);
   });
 
   it("accepte un tableau vide, qui est un état légitime", () => {

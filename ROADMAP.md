@@ -11,8 +11,11 @@ définitivement perdu.
 > 1 → 4 → 2 → 3 (l'annulation avant l'export/import, pour que l'import soit lui aussi
 > annulable).
 >
-> **Tier 2 livré** sur `feat/tier-2-daily-use` (items 5 à 9). Prochaine étape : Tier 3,
-> en commençant par la sélection multiple (10) ou le responsive mobile (11).
+> **Tier 2 livré** sur `feat/tier-2-daily-use` (items 5 à 9).
+>
+> **Tier 3 livré** sur `feat/tier-3-finition`, dans l'ordre 12 → 10 → 13 → 11 → 14 → 15.
+> Reste le tier 4 : un backend (16), dont dépendent aussi les rappels hors session, et
+> l'élargissement des tests (17), déjà bien entamé.
 
 ---
 
@@ -111,29 +114,41 @@ session dépend du PWA (15) ou d'un serveur (16).
 
 ---
 
-## Tier 3 — Finition
+## Tier 3 — Finition ✅
 
-### 10. Sélection multiple et actions groupées
-Déplacer, supprimer ou taguer plusieurs tâches d'un coup.
+### 10. Sélection multiple et actions groupées — fait
+Case au survol, `Ctrl/⌘+clic`, `Maj+clic` pour une plage (dans une seule colonne). `BulkBar`
+déplace, tague ou supprime le lot ; glisser une carte du lot emmène tout. Pas de confirmation :
+`UndoToast` est le filet.
 
-### 11. Responsive mobile
-`Board` est un scroll horizontal pensé pour le bureau. Sur téléphone : une colonne à la fois plus
-un sélecteur de liste.
+### 11. Responsive mobile — fait
+Point de rupture unique, `md` (768 px). En dessous : barre latérale en tiroir (bouton `☰` flottant,
+voile, Échap), sélecteur de listes en pastilles (`ColumnTabs`) et une seule colonne pleine largeur,
+menu « Déplacer vers » sur la carte à la place du glisser-déposer — inexistant au tactile — cases à
+cocher toujours visibles, barres de stats et classement en défilement latéral plutôt qu'écrasés.
+Les trois autres vues ont reçu la même passe (paddings, titres, grille du calendrier).
 
-### 12. Modales internes au lieu de `confirm()`
-Les `confirm()` natifs (`app/page.tsx:93`, `app/page.tsx:158`) cassent le thème et ignorent les
-tokens de `globals.css`.
+### 12. Modales internes au lieu de `confirm()` — fait
+`useConfirm` + `ConfirmModal` : `ask()` rend une promesse, `notify()` remplace `alert()`. Les
+dialogues natifs ignoraient `data-theme` et tous les tokens de `globals.css`.
 
-### 13. Accessibilité clavier
-Déplacer une tâche exige aujourd'hui la souris. Raccourcis proposés : `j` / `k` pour naviguer,
-`1`–`7` pour envoyer la carte sélectionnée dans une liste. À ajouter au gestionnaire de touches
-existant (`app/page.tsx:165`).
+### 13. Accessibilité clavier — fait
+Curseur de carte à tabulation mouvante : `j k h l` et les flèches naviguent, `x` coche, `Entrée`
+ouvre, `Suppr` supprime, `1`–`9` envoient dans la n-ième liste (neuf, les listes étant des
+données). Tout passe par `nextCursor` (`lib/board-cursor.ts`), pur et testé.
 
-### 14. Modèles de tâches
-Pré-remplir catégorie, estimation et tags pour les tâches répétitives de même forme.
+### 14. Modèles de tâches — fait
+`TaskTemplate` (`lib/templates.ts`) retient ce qui se répète : titre, description, catégorie, type,
+priorité, tags, étapes, récurrence, estimation. Pas d'échéance ni de temps passé, qui appartiennent
+à une occurrence. « Enregistrer comme modèle » depuis la modale, pastilles à la création, étapes
+réattribuées et décochées. Stockés sous `molotask_templates` et embarqués dans l'export.
 
-### 15. PWA
-Installable et hors-ligne. Next 15 le gère proprement et le modèle `localStorage` s'y prête déjà.
+### 15. PWA — fait
+`app/manifest.ts` (icône = `app/icon.svg`, `sizes: "any"`) et `public/sw.js` écrit à la main :
+coquille précachée, navigations réseau-d'abord avec repli cache, `/_next/static/` en
+cache-d'abord, purge des caches au changement de `VERSION`. `ServiceWorker.tsx` n'enregistre qu'en
+production et propose la mise à jour quand un worker attend. **Limite inchangée** : un rappel
+fenêtre fermée demande Web Push, donc un serveur (16) — le service worker n'y suffit pas.
 
 ---
 
@@ -143,10 +158,13 @@ Installable et hors-ligne. Next 15 le gère proprement et le modèle `localStora
 Synchronisation multi-appareils (Supabase ou équivalent). Casse le modèle `localStorage` en
 place : à n'engager que si le besoin est réel et durable.
 
-### 17. Tests
-Aucun test pour l'instant. Playwright est déjà présent dans le projet (`.playwright/`).
-Couverture minimale visée :
+### 17. Tests — en partie fait
+Vitest couvre la logique de `lib/` (déplacements, tri, chronomètre, récurrence, relecture du
+stockage, import/export, filtres, curseur clavier, modèles) et quelques composants
+(`TaskCard`, `BulkBar`, `ColumnTabs`, modèles de `TaskModal`), et la CI en fait une étape
+bloquante. Restent hors couverture, faute de se rejouer honnêtement sous jsdom :
 
-- créer, déplacer, supprimer une tâche ;
-- persistance après rechargement ;
-- migration `sanitizeColumns` (entrées invalides, doublons, colonne verrouillée manquante).
+- le glisser-déposer, dont la géométrie dépend du rendu réel ;
+- le responsive et le service worker (mode avion, installation) ;
+- un parcours de bout en bout — créer, déplacer, recharger — qui appelle Playwright, déjà
+  présent dans le projet (`.playwright/`), plutôt que jsdom.

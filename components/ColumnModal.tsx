@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ColumnDef } from "@/lib/types";
 import { COLUMN_TINTS } from "@/lib/constants";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 interface Props {
   open: boolean;
@@ -29,28 +30,7 @@ export function ColumnModal({ open, editing, onClose, onSave }: Props) {
     return () => clearTimeout(t);
   }, [open, editing]);
 
-  // Piège à focus : Tab reste dans la boîte de dialogue.
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Tab" || !dialogRef.current) return;
-      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  useFocusTrap(open, dialogRef);
 
   if (!open) return null;
 

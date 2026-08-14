@@ -1,5 +1,5 @@
 import type { CategoryKey, ColumnId, Priority, Repeat, Step, Task } from "./types";
-import { CATEGORIES, DONE_COLS, INBOX_COL, REPEATS } from "./constants";
+import { CATEGORIES, DONE_COLS, INBOX_COL, PRIORITIES, REPEATS } from "./constants";
 
 /** Horodatage courant, en ISO 8601. */
 export function nowIso(): string {
@@ -148,8 +148,6 @@ export function withColumn(task: Task, toCol: ColumnId, at: string = nowIso()): 
   };
 }
 
-const PRIORITIES: Priority[] = ["high", "med", "low"];
-
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
@@ -275,6 +273,108 @@ export function moveTask(
   });
   rest.splice(last + 1, 0, moved);
   return rest;
+}
+
+/**
+ * Insère l'occurrence suivante quand une tâche récurrente vient d'entrer dans
+ * une liste terminée.
+ *
+ * La nouvelle occurrence prend la place laissée par l'ancienne, pour réappa-
+ * raître là où l'utilisateur la cherchait — pas en bout de tableau. `before`
+ * est la tâche telle qu'elle était **avant** le déplacement : c'est sa colonne
+ * d'origine qui dit où l'occurrence suivante doit revivre.
+ */
+export function withRecurrence(
+  tasks: Task[],
+  before: Task | undefined,
+  toCol: ColumnId,
+  at: string,
+  day: string,
+): Task[] {
+  if (!before || !before.repeat) return tasks;
+  if (!isDoneCol(toCol) || isDoneCol(before.col)) return tasks;
+
+  const clone = nextOccurrence(before, before.col, at, day);
+  if (!clone) return tasks;
+
+  const i = tasks.findIndex((t) => t.id === before.id);
+  const next = [...tasks];
+  next.splice(i === -1 ? next.length : i, 0, clone);
+  return next;
+}
+
+/**
+ * Déplace un lot de tâches vers une liste, groupées d'un bloc.
+ *
+ * Même convention que `moveTask` : `beforeId` désigne la tâche devant laquelle
+ * déposer, `null` place à la fin de la colonne visée. Le lot garde l'ordre du
+ * tableau, pas celui des clics.
+ *
+ * Une tâche déjà dans la colonne visée n'est déplacée que si le dépôt est
+ * positionné (`beforeId`) : sur un simple « déplacer vers », la réordonner
+ * n'a pas été demandé.
+ */
+export function moveTasks(
+  tasks: Task[],
+  ids: string[],
+  toCol: ColumnId,
+  beforeId: string | null = null,
+  at: string = nowIso(),
+  today = "",
+): Task[] {
+  const wanted = new Set(ids);
+  const moving = tasks.filter(
+    (t) => wanted.has(t.id) && (beforeId !== null || t.col !== toCol),
+  );
+  if (moving.length === 0) return tasks;
+
+  const movingIds = new Set(moving.map((t) => t.id));
+  // Déposer le lot devant l'une de ses propres tâches ne veut rien dire : la
+  // cible disparaît du tableau restant, on retombe sur la fin de colonne.
+  const rest = tasks.filter((t) => !movingIds.has(t.id));
+  const placed = moving.map((t) => withColumn(t, toCol, at));
+
+  const target = beforeId !== null ? rest.findIndex((t) => t.id === beforeId) : -1;
+  if (target !== -1) {
+    rest.splice(target, 0, ...placed);
+    return moving.reduce((acc, before) => withRecurrence(acc, before, toCol, at, today), rest);
+  }
+
+  let last = -1;
+  rest.forEach((t, i) => {
+    if (t.col === toCol) last = i;
+  });
+  rest.splice(last + 1, 0, ...placed);
+
+  // Terminer cinq tâches d'un coup doit régénérer les récurrentes du lot,
+  // exactement comme le ferait un déplacement une par une.
+  return moving.reduce((acc, before) => withRecurrence(acc, before, toCol, at, today), rest);
+}
+
+/** Retire un lot de tâches ; le tableau est rendu tel quel si rien ne colle. */
+export function deleteTasks(tasks: Task[], ids: string[]): Task[] {
+  const wanted = new Set(ids);
+  const kept = tasks.filter((t) => !wanted.has(t.id));
+  return kept.length === tasks.length ? tasks : kept;
+}
+
+/**
+ * Ajoute un tag à un lot de tâches. Sans effet sur celles qui le portent déjà,
+ * et l'identité du tableau est préservée quand rien ne change : l'état React
+ * ne doit pas se mettre à jour pour rien.
+ */
+export function tagTasks(tasks: Task[], ids: string[], tag: string): Task[] {
+  const label = tag.trim();
+  if (!label) return tasks;
+
+  const wanted = new Set(ids);
+  let changed = false;
+  const next = tasks.map((t) => {
+    if (!wanted.has(t.id) || (t.tags || []).includes(label)) return t;
+    changed = true;
+    return { ...t, tags: [...(t.tags || []), label] };
+  });
+  return changed ? next : tasks;
 }
 
 /** Critères de tri proposés dans le menu d'une liste. */

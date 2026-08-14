@@ -1,6 +1,7 @@
-import type { ColumnDef, Task } from "./types";
+import type { ColumnDef, Task, TaskTemplate } from "./types";
 import { sanitizeColumns } from "./columns";
 import { sanitizeTasks } from "./tasks";
+import { sanitizeTemplates } from "./templates";
 
 /** Marqueur de format : évite d'avaler un JSON qui n'a rien à voir. */
 const APP = "molotask";
@@ -14,15 +15,26 @@ export interface Backup {
   exportedAt: string;
   tasks: Task[];
   columns: ColumnDef[];
+  /**
+   * Modèles de tâches. Arrivé après le format 1 et laissé dedans : un champ
+   * ignoré par une version plus ancienne coûte moins cher qu'un numéro de
+   * format qui ferait refuser le fichier à cette version-là.
+   */
+  templates: TaskTemplate[];
 }
 
-export function buildBackup(tasks: Task[], columns: ColumnDef[]): Backup {
+export function buildBackup(
+  tasks: Task[],
+  columns: ColumnDef[],
+  templates: TaskTemplate[],
+): Backup {
   return {
     app: APP,
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     tasks,
     columns,
+    templates,
   };
 }
 
@@ -38,7 +50,11 @@ export function backupFilename(now: Date = new Date()): string {
  * Lève une erreur au message lisible : il est affiché tel quel à
  * l'utilisateur, qui vient peut-être de choisir le mauvais fichier.
  */
-export function parseBackup(text: string): { tasks: Task[]; columns: ColumnDef[] } {
+export function parseBackup(text: string): {
+  tasks: Task[];
+  columns: ColumnDef[];
+  templates: TaskTemplate[];
+} {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -62,12 +78,13 @@ export function parseBackup(text: string): { tasks: Task[]; columns: ColumnDef[]
 
   const tasks = sanitizeTasks(data.tasks);
   const columns = sanitizeColumns(data.columns);
+  const templates = sanitizeTemplates(data.templates);
 
   if (tasks.length === 0 && !Array.isArray(data.tasks)) {
     throw new Error("Sauvegarde illisible : aucune liste de tâches trouvée.");
   }
 
-  return { tasks, columns };
+  return { tasks, columns, templates };
 }
 
 /** Déclenche le téléchargement d'un fichier construit en mémoire. */

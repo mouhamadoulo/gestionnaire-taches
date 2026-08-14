@@ -11,12 +11,21 @@ interface Props {
   /** Une recherche ou un filtre est actif : une liste vide n'est pas vide. */
   filtering: boolean;
   today: string;
+  /** Largeur et visibilité, décidées par le tableau selon la taille d'écran. */
+  className: string;
+  /** Toutes les listes — destinations du menu « Déplacer vers » des cartes. */
+  columns: ColumnDef[];
   canMoveLeft: boolean;
   canMoveRight: boolean;
   onAdd: (colId: ColumnId) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleTimer: (id: string) => void;
+  onMoveTask: (taskId: string, toCol: ColumnId, beforeId: string | null) => void;
+  selected: Set<string>;
+  /** Identifiant de la carte sous le curseur clavier. */
+  cursor: string | null;
+  onSelect: (id: string, range: boolean) => void;
   /** `beforeId` : tâche devant laquelle déposer, `null` pour la fin de liste. */
   onDrop: (colId: ColumnId, beforeId: string | null) => void;
   onDragStart: (id: string, el: HTMLElement) => void;
@@ -32,12 +41,18 @@ export function Column({
   tasks,
   filtering,
   today,
+  className,
+  columns,
   canMoveLeft,
   canMoveRight,
   onAdd,
   onEdit,
   onDelete,
   onToggleTimer,
+  onMoveTask,
+  selected,
+  cursor,
+  onSelect,
   onDrop,
   onDragStart,
   onDragEnd,
@@ -88,7 +103,7 @@ export function Column({
   return (
     <section
       aria-label={col.label}
-      className="w-[286px] flex-shrink-0 flex flex-col rounded-[14px] overflow-hidden max-h-full relative plate-column"
+      className={`${className} flex-col rounded-[14px] overflow-hidden max-h-full relative plate-column`}
     >
       {/* Liseré supérieur teinté */}
       <div
@@ -241,9 +256,15 @@ export function Column({
                   task={t}
                   tint={tint}
                   today={today}
+                  columns={columns}
+                  selected={selected.has(t.id)}
+                  selectionActive={selected.size > 0}
+                  cursor={cursor === t.id}
+                  onSelect={onSelect}
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onToggleTimer={onToggleTimer}
+                  onMoveTask={onMoveTask}
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
                 />

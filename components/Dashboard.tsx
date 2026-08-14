@@ -47,16 +47,17 @@ export function Dashboard({ tasks, columns, onAdd, onEdit, onView }: Props) {
   const greeting = greetingForHour(new Date().getHours());
 
   return (
-    <div className="flex-1 overflow-y-auto px-7 py-7 relative">
-      <div className="max-w-[1180px] mx-auto flex flex-col gap-7 stagger">
+    /* `pt` mobile : le bouton du menu flotte en haut à gauche de la vue. */
+    <div className="flex-1 overflow-y-auto px-4 md:px-7 pt-[62px] md:pt-7 pb-6 md:pb-7 relative">
+      <div className="max-w-[1180px] mx-auto flex flex-col gap-5 md:gap-7 stagger">
         {/* Accueil */}
-        <header className="flex items-end justify-between gap-6 flex-wrap pr-[46px]">
+        <header className="flex items-end justify-between gap-4 md:gap-6 flex-wrap md:pr-[46px]">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[1.6px] text-tm flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-acc animate-breathe" aria-hidden />
               {fmtFullDate(new Date())} · MoloTask
             </div>
-            <h1 className="font-display italic text-t1 text-[44px] leading-[1.05] tracking-[-1px] mt-[6px]">
+            <h1 className="font-display italic text-t1 text-[30px] md:text-[44px] leading-[1.05] tracking-[-1px] mt-[6px]">
               {greeting},<br />
               <span className="text-acc">Mouhamadou</span>.
             </h1>
