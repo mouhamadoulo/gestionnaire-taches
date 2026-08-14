@@ -40,7 +40,9 @@ Les tests vivent dans `lib/__tests__/` et `components/__tests__/` — **pas** da
 `tsconfig.json` laisse le JSX à Next (`"jsx": "preserve"`), d'où le `esbuild: { jsx: 'automatic' }`
 de la config Vitest : hors build Next, personne d'autre ne transforme le JSX.
 
-`withRecurrence` n'est pas testable en l'état : il est défini dans `app/page.tsx` et non exporté.
+Reste hors couverture : les vues (`Dashboard`, `CalendarView`, `AnalyticsView`) et le
+glisser-déposer, dont la géométrie ne se rejoue pas honnêtement sous jsdom — il se vérifie au
+navigateur.
 
 Écrire un test = fixer une décision déjà prise, pas décrire l'implémentation : `doneAt` effacé
 quand une tâche est rouverte, échéance récurrente qui roule au-delà de `today`, colonne
@@ -85,6 +87,7 @@ components/
   ColumnModal.tsx   # Create/rename list dialog (name, hint, tint swatches, live header preview)
   UndoToast.tsx     # "Annuler" banner shown after a destructive action
   ConfirmModal.tsx  # Themed confirm / notify dialog (replaces confirm() and alert())
+  BulkBar.tsx       # Bulk actions on the current selection (move / tag / delete)
   FilterMenu.tsx    # Filter popover opened from the top bar
   Dashboard.tsx     # Overview: flow ribbon, upcoming, overdue, category mix
   CalendarView.tsx  # Month grid + selected-day detail
@@ -94,7 +97,7 @@ lib/
   types.ts          # Task, TaskDraft, ColumnId, CategoryKey, Priority, ColumnDef, ViewId, ThemeMode
   constants.ts      # DEFAULT_COLS, COLUMN_TINTS, CAT_COLOR, CAT_LBL, CATEGORIES, TASK_TYPES, DONE_COLS, ACTIVE_COLS, keys
   columns.ts        # sanitizeColumns (storage migration), moveColumn, tintOf, newColumnId
-  tasks.ts          # sanitizeTasks, withColumn, moveTask, sortColumn, timer + recurrence + cycle-time helpers
+  tasks.ts          # sanitizeTasks, withColumn, moveTask(s), sortColumn, bulk ops, timer + recurrence + cycle-time helpers
   backup.ts         # buildBackup, parseBackup, downloadJson (JSON export / import)
   filters.ts        # Filters, matchesTask, isOverdue / isDueToday, collectTags
   reminders.ts      # opt-in browser notifications for due tasks
@@ -174,6 +177,29 @@ that server-renders.
 Reminders (`lib/reminders.ts`) are opt-in browser notifications, deduped to one per task per day
 in `localStorage`. Without a service worker they only fire while the app is open — the UI says so
 rather than implying an alarm.
+
+### Selection and bulk actions
+
+`HomePage` owns `selected: Set<string>`. Three gestures fill it: the checkbox revealed on card
+hover (permanent once anything is selected), `Ctrl/⌘+click` anywhere on the card, and
+`Shift+click` for a range. **A range only spans one column** — the global array order is not what
+the user sees on screen. `Escape` clears the selection.
+
+The selection is **pruned to visible tasks** on every change of search/filters, for the same
+reason `pruneTags` exists: a task hidden by a filter must not travel with a bulk action the user
+believes applies to what they can see.
+
+`BulkBar` is presentational; `moveTasks` / `deleteTasks` / `tagTasks` (`lib/tasks.ts`) are pure
+and tested. `moveTasks` takes the same `beforeId` convention as `moveTask`, so dragging one card
+of a selection drops the whole batch where it was released — `handleMove` routes to it whenever
+the dragged id is part of a selection of more than one.
+
+Bulk actions carry **no confirm dialog**: like a single delete, `UndoToast` is the safety net, and
+a dialog nobody reads is worse than no dialog. `ConfirmModal` stays for deleting a list and for
+importing, which are not covered the same way.
+
+Completing a batch regenerates recurring tasks exactly as a one-by-one move would — that is why
+`withRecurrence` lives in `lib/tasks.ts` rather than in `app/page.tsx`.
 
 ### Timer and recurrence
 

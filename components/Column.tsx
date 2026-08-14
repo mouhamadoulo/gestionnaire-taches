@@ -17,6 +17,8 @@ interface Props {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleTimer: (id: string) => void;
+  selected: Set<string>;
+  onSelect: (id: string, range: boolean) => void;
   /** `beforeId` : tâche devant laquelle déposer, `null` pour la fin de liste. */
   onDrop: (colId: ColumnId, beforeId: string | null) => void;
   onDragStart: (id: string, el: HTMLElement) => void;
@@ -38,6 +40,8 @@ export function Column({
   onEdit,
   onDelete,
   onToggleTimer,
+  selected,
+  onSelect,
   onDrop,
   onDragStart,
   onDragEnd,
@@ -241,6 +245,9 @@ export function Column({
                   task={t}
                   tint={tint}
                   today={today}
+                  selected={selected.has(t.id)}
+                  selectionActive={selected.size > 0}
+                  onSelect={onSelect}
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onToggleTimer={onToggleTimer}

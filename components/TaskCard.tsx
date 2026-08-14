@@ -12,6 +12,11 @@ interface Props {
   tint: string;
   /** « AAAA-MM-JJ », vide avant hydratation : aucune échéance n'est signalée. */
   today: string;
+  selected: boolean;
+  /** Au moins une tâche est cochée : les cases restent visibles partout. */
+  selectionActive: boolean;
+  /** `range` : Maj+clic, qui étend la sélection jusqu'à l'ancre. */
+  onSelect: (id: string, range: boolean) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleTimer: (id: string) => void;
@@ -29,6 +34,9 @@ export function TaskCard({
   task,
   tint,
   today,
+  selected,
+  selectionActive,
+  onSelect,
   onEdit,
   onDelete,
   onToggleTimer,
@@ -79,14 +87,39 @@ export function TaskCard({
     <article
       draggable
       data-task-id={task.id}
+      /* L'état accessible est porté par la case à cocher ; `aria-selected`
+         n'est pas valide sur un article. Cet attribut ne sert qu'au style. */
+      data-selected={selected || undefined}
+      /* Le clic nu ne faisait rien sur la carte : on ne lui donne un sens que
+         combiné à Ctrl/⌘ (cocher) ou Maj (étendre la plage). */
+      onClick={(e) => {
+        if (!e.ctrlKey && !e.metaKey && !e.shiftKey) return;
+        e.preventDefault();
+        onSelect(task.id, e.shiftKey);
+      }}
+      className={`glass-card rounded-[12px] overflow-hidden cursor-grab relative group flex-shrink-0 ${
+        selected ? "ring-2 ring-acc/70" : ""
+      }`}
       onDragStart={(e) => onDragStart(task.id, e.currentTarget)}
       onDragEnd={(e) => onDragEnd(e.currentTarget)}
-      className="glass-card rounded-[12px] overflow-hidden cursor-grab relative group flex-shrink-0"
     >
       <div
         aria-hidden
         className="h-[2px] w-full"
         style={{ background: `linear-gradient(90deg, transparent, ${tint}, transparent)` }}
+      />
+
+      {/* Révélée au survol, permanente dès qu'une sélection est en cours. */}
+      <input
+        type="checkbox"
+        checked={selected}
+        draggable={false}
+        aria-label={`Sélectionner « ${task.title} »`}
+        onClick={(e) => e.stopPropagation()}
+        onChange={() => onSelect(task.id, false)}
+        className={`absolute top-[9px] right-[9px] z-10 w-[15px] h-[15px] cursor-pointer accent-acc transition-opacity ${
+          selected || selectionActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        }`}
       />
 
       <div className="px-[14px] pt-[12px] pb-[11px]">

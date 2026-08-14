@@ -12,16 +12,19 @@ import {
 import { moveColumn, newColumnId, sanitizeColumns } from "@/lib/columns";
 import type { SortKey } from "@/lib/tasks";
 import {
+  deleteTasks,
   isDoneCol,
   moveTask,
-  nextOccurrence,
+  moveTasks,
   nowIso,
   reassignColumn,
   sanitizeTasks,
   sortColumn,
   startTimer,
   stopTimer,
+  tagTasks,
   withColumn,
+  withRecurrence,
 } from "@/lib/tasks";
 import { backupFilename, buildBackup, downloadJson, parseBackup } from "@/lib/backup";
 import {
@@ -55,6 +58,7 @@ import { AnalyticsView } from "@/components/AnalyticsView";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UndoToast, type UndoOffer } from "@/components/UndoToast";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { BulkBar } from "@/components/BulkBar";
 import { useConfirm } from "@/lib/use-confirm";
 
 /** Date locale du jour, « AAAA-MM-JJ » — même format que `Task.date`. */
@@ -62,32 +66,6 @@ function localDay(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-
-/**
- * Insère l'occurrence suivante quand une tâche récurrente vient d'entrer dans
- * une liste terminée.
- *
- * La nouvelle occurrence prend la place laissée par l'ancienne, pour réappa-
- * raître là où l'utilisateur la cherchait — pas en bout de tableau.
- */
-function withRecurrence(
-  tasks: Task[],
-  before: Task | undefined,
-  toCol: ColumnId,
-  at: string,
-  day: string,
-): Task[] {
-  if (!before || !before.repeat) return tasks;
-  if (!isDoneCol(toCol) || isDoneCol(before.col)) return tasks;
-
-  const clone = nextOccurrence(before, before.col, at, day);
-  if (!clone) return tasks;
-
-  const i = tasks.findIndex((t) => t.id === before.id);
-  const next = [...tasks];
-  next.splice(i === -1 ? next.length : i, 0, clone);
-  return next;
 }
 
 /** Instantané restauré par le bandeau « Annuler ». */
@@ -126,6 +104,19 @@ export default function HomePage() {
   /* Confirmations et messages, en lieu et place de `confirm()` / `alert()`. */
   const { dialog, ask, notify } = useConfirm();
   const dialogOpen = dialog !== null;
+
+  /* Sélection multiple : identifiants des tâches cochées sur le tableau. */
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const clearSelection = useCallback(() => {
+    setSelected((prev) => (prev.size === 0 ? prev : new Set()));
+  }, []);
+
+  /* Miroir, pour la même raison que `stateRef` : les gestionnaires d'actions
+     groupées ne doivent pas se recréer à chaque case cochée. */
+  const selectedRef = useRef(selected);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
   /* Miroir de l'état courant : `offerUndo` a besoin de l'avant-action sans
      dépendre de `tasks` / `columns`, qui rendraient tous les gestionnaires
@@ -243,14 +234,29 @@ export default function HomePage() {
     [offerUndo],
   );
 
-  const handleMove = useCallback((taskId: string, toCol: ColumnId, beforeId: string | null) => {
-    const at = nowIso();
-    const day = localDay();
-    setTasks((prev) => {
-      const before = prev.find((t) => t.id === taskId);
-      return withRecurrence(moveTask(prev, taskId, toCol, beforeId, at), before, toCol, at, day);
-    });
-  }, []);
+  const handleMove = useCallback(
+    (taskId: string, toCol: ColumnId, beforeId: string | null) => {
+      const at = nowIso();
+      const day = localDay();
+
+      /* Glisser une carte qui fait partie de la sélection emmène tout le lot :
+         c'est ce qu'attend quelqu'un qui vient d'en cocher cinq. */
+      const batch = selectedRef.current;
+      if (batch.size > 1 && batch.has(taskId)) {
+        const ids = [...batch];
+        offerUndo(`${ids.length} tâches déplacées.`);
+        setTasks((prev) => moveTasks(prev, ids, toCol, beforeId, at, day));
+        clearSelection();
+        return;
+      }
+
+      setTasks((prev) => {
+        const before = prev.find((t) => t.id === taskId);
+        return withRecurrence(moveTask(prev, taskId, toCol, beforeId, at), before, toCol, at, day);
+      });
+    },
+    [offerUndo, clearSelection],
+  );
 
   /* Un seul chronomètre à la fois : démarrer une tâche arrête celle qui
      tournait, sinon on oublie un compteur en route et `spent` devient faux. */
@@ -379,11 +385,95 @@ export default function HomePage() {
     setFilters((f) => pruneTags(f, tags));
   }, [tags]);
 
-  const shownCount = useMemo(() => {
+  /* Ce que le tableau montre réellement, une fois recherche et filtres passés.
+     Sert au compteur, à l'élagage de la sélection et aux plages Maj+clic. */
+  const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q && !hasFilters(filters)) return tasks.length;
-    return tasks.filter((t) => matchesTask(t, q, filters, today)).length;
+    if (!q && !hasFilters(filters)) return tasks;
+    return tasks.filter((t) => matchesTask(t, q, filters, today));
   }, [tasks, search, filters, today]);
+  const shownCount = visible.length;
+
+  const visibleRef = useRef(visible);
+  useEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
+
+  /* Une tâche masquée par un filtre ne doit pas partir dans une action groupée
+     qu'on croit porter sur ce qu'on voit — même raison que `pruneTags`. */
+  useEffect(() => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const shown = new Set(visible.map((t) => t.id));
+      const kept = [...prev].filter((id) => shown.has(id));
+      return kept.length === prev.size ? prev : new Set(kept);
+    });
+  }, [visible]);
+
+  /* Ancre des plages Maj+clic : la dernière carte cliquée. */
+  const anchorRef = useRef<string | null>(null);
+
+  const handleSelect = useCallback((id: string, range: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const anchor = anchorRef.current;
+      const list = visibleRef.current;
+
+      /* Une plage ne vaut que dans une colonne : l'ordre global du tableau
+         n'est pas ce que l'utilisateur voit à l'écran. */
+      if (range && anchor && anchor !== id) {
+        const from = list.find((t) => t.id === anchor);
+        const to = list.find((t) => t.id === id);
+        if (from && to && from.col === to.col) {
+          const col = list.filter((t) => t.col === from.col).map((t) => t.id);
+          const i = col.indexOf(anchor);
+          const j = col.indexOf(id);
+          col.slice(Math.min(i, j), Math.max(i, j) + 1).forEach((x) => next.add(x));
+          return next;
+        }
+      }
+
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    anchorRef.current = id;
+  }, []);
+
+  /* Actions groupées. Pas de confirmation : comme pour une suppression
+     unitaire, le bandeau « Annuler » est le filet. */
+  const handleBulkMove = useCallback(
+    (toCol: ColumnId) => {
+      const ids = [...selectedRef.current];
+      if (ids.length === 0) return;
+      const col = columns.find((c) => c.id === toCol);
+      offerUndo(`${ids.length} tâche${ids.length > 1 ? "s" : ""} déplacée${ids.length > 1 ? "s" : ""} vers « ${col?.label ?? toCol} ».`);
+      const at = nowIso();
+      const day = localDay();
+      setTasks((prev) => moveTasks(prev, ids, toCol, null, at, day));
+      clearSelection();
+    },
+    [columns, offerUndo, clearSelection],
+  );
+
+  const handleBulkDelete = useCallback(() => {
+    const ids = [...selectedRef.current];
+    if (ids.length === 0) return;
+    offerUndo(`${ids.length} tâche${ids.length > 1 ? "s" : ""} supprimée${ids.length > 1 ? "s" : ""}.`);
+    setTasks((prev) => deleteTasks(prev, ids));
+    clearSelection();
+  }, [offerUndo, clearSelection]);
+
+  const handleBulkTag = useCallback(
+    (tag: string) => {
+      const ids = [...selectedRef.current];
+      if (ids.length === 0 || !tag.trim()) return;
+      offerUndo(`Tag « ${tag.trim()} » ajouté à ${ids.length} tâche${ids.length > 1 ? "s" : ""}.`);
+      setTasks((prev) => tagTasks(prev, ids, tag));
+      clearSelection();
+    },
+    [offerUndo, clearSelection],
+  );
 
   const handleExport = useCallback(() => {
     const { tasks: t, columns: c } = stateRef.current;
@@ -434,6 +524,7 @@ export default function HomePage() {
       if (e.key === "Escape") {
         setModalOpen(false);
         setColModalOpen(false);
+        clearSelection();
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
@@ -457,7 +548,7 @@ export default function HomePage() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [openAdd, toggleNav, applyUndo, dialogOpen]);
+  }, [openAdd, toggleNav, applyUndo, dialogOpen, clearSelection]);
 
   return (
     <>
@@ -499,6 +590,8 @@ export default function HomePage() {
                 onEdit={openEdit}
                 onDelete={handleDelete}
                 onToggleTimer={handleToggleTimer}
+                selected={selected}
+                onSelect={handleSelect}
                 onMove={handleMove}
                 onAddCol={openAddCol}
                 onRenameCol={openRenameCol}
@@ -545,6 +638,16 @@ export default function HomePage() {
           editing={editingCol}
           onClose={() => setColModalOpen(false)}
           onSave={handleSaveCol}
+        />
+
+        <BulkBar
+          count={selected.size}
+          columns={columns}
+          tags={tags}
+          onMove={handleBulkMove}
+          onDelete={handleBulkDelete}
+          onTag={handleBulkTag}
+          onClear={clearSelection}
         />
 
         <ConfirmModal dialog={dialog} />

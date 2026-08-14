@@ -17,6 +17,8 @@ interface Props {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleTimer: (id: string) => void;
+  selected: Set<string>;
+  onSelect: (id: string, range: boolean) => void;
   onMove: (taskId: string, toCol: ColumnId, beforeId: string | null) => void;
   onAddCol: () => void;
   onRenameCol: (colId: ColumnId) => void;
@@ -39,6 +41,8 @@ export function Board({
   onEdit,
   onDelete,
   onToggleTimer,
+  selected,
+  onSelect,
   onMove,
   onAddCol,
   onRenameCol,
@@ -152,6 +156,8 @@ export function Board({
             onEdit={onEdit}
             onDelete={onDelete}
             onToggleTimer={onToggleTimer}
+            selected={selected}
+            onSelect={onSelect}
             onDrop={handleDrop}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
