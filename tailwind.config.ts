@@ -1,6 +1,8 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  // Le thème est piloté par [data-theme] sur <html> (voir ThemeScript / useTheme).
+  darkMode: ["selector", '[data-theme="dark"]'],
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
@@ -8,19 +10,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Surfaces
-        ink:        "#07080d",   // pure black-blue base
-        bg:         "#0a0b12",   // page canvas
-        sb:         "#0c0e16",   // sidebar plate
-        surface:    "#10121b",   // raised surface
+        // Surfaces — valeurs définies dans globals.css, par thème
+        ink:     "var(--ink)",
+        bg:      "var(--bg)",
+        sb:      "var(--sb)",
+        surface: "var(--surface)",
         // Type
-        t1:         "#ecedf2",   // primary pearl
-        t2:         "#9aa0b4",   // secondary
-        tm:         "#5e6378",   // muted
-        td:         "#3b4055",   // dim
-        // Lines
-        line:       "#1c1f2e",
-        // Accent — keep brand orange, add cool counter-accent
+        t1: "var(--t1)",
+        t2: "var(--t2)",
+        tm: "var(--tm)",
+        td: "var(--td)",
+        // Lignes
+        line: "var(--line)",
+        // Voiles neutres (remplacent les anciens bg-white/[0.0x] codés en dur)
+        fill1: "var(--fill-1)",
+        fill2: "var(--fill-2)",
+        fill3: "var(--fill-3)",
+        stroke1: "var(--stroke-1)",
+        stroke2: "var(--stroke-2)",
+        // Accents — identiques dans les deux thèmes (l'opacité Tailwind reste utilisable)
         acc: {
           DEFAULT: "#ff6b35",
           hover:   "#ff8359",
@@ -28,16 +36,15 @@ const config: Config = {
           soft:    "#ff6b3520",
         },
         cool: {
-          DEFAULT: "#5eead4",   // cyan-mint counter
-          soft:    "#5eead420",
+          DEFAULT: "#14b8a6",
+          soft:    "#14b8a620",
         },
-        // Glass tokens (8-digit hex — RRGGBBAA)
         glass: {
-          fill:    "#ffffff08",  // 3% white wash
-          fillHi:  "#ffffff0f",  // 6% — hover / cards
-          stroke:  "#ffffff14",  // 8% white stroke
-          strokeHi:"#ffffff26",  // 15% — focus
-          base:    "#0c0e1666",  // dark glass tint
+          fill:     "var(--fill-1)",
+          fillHi:   "var(--fill-2)",
+          stroke:   "var(--stroke-1)",
+          strokeHi: "var(--stroke-2)",
+          base:     "var(--panel-base)",
         },
       },
       fontFamily: {
@@ -46,12 +53,11 @@ const config: Config = {
         mono:    ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       boxShadow: {
-        // Glass weight stack: inner top highlight + dark drop
-        glass:     "inset 0 1px 0 #ffffff10, 0 1px 0 #00000040, 0 18px 36px -16px rgba(0,0,0,0.7), 0 8px 18px -8px rgba(0,0,0,0.45)",
-        glassHi:   "inset 0 1px 0 #ffffff1c, 0 1px 0 #00000050, 0 30px 60px -20px rgba(0,0,0,0.85), 0 14px 28px -10px rgba(0,0,0,0.55)",
-        rim:       "inset 0 0 0 1px #ffffff10",
-        glowAcc:   "0 0 28px -4px rgba(255,107,53,0.55)",
-        glowCool:  "0 0 22px -4px rgba(94,234,212,0.45)",
+        glass:    "var(--sh-glass)",
+        glassHi:  "var(--sh-glass-hi)",
+        rim:      "var(--sh-rim)",
+        glowAcc:  "0 0 28px -4px rgba(255,107,53,0.55)",
+        glowCool: "0 0 22px -4px rgba(20,184,166,0.45)",
       },
       backdropBlur: {
         xs: "3px",

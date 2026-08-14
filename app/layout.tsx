@@ -24,9 +24,12 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ContentFlow — Atelier Nocturne",
-  description: "Kanban pour créateurs de contenu",
+  title: "MoloTask — Gestionnaire de tâches",
+  description: "Tableau kanban pour gérer tous types de tâches : travail, perso, projets, études.",
 };
+
+// Applique le thème avant le premier rendu pour éviter le flash de couleur.
+const THEME_INIT = `(function(){try{var s=localStorage.getItem('molotask_theme');var t=(s==='light'||s==='dark')?s:(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`;
 
 export default function RootLayout({
   children,
@@ -34,7 +37,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+    <html
+      lang="fr"
+      data-theme="dark"
+      className={`${display.variable} ${body.variable} ${mono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

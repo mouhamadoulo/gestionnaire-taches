@@ -1,6 +1,6 @@
-import type { Card } from "@/lib/types";
-import { PAST_COLS } from "@/lib/constants";
-import { fmtNum } from "@/lib/utils";
+import type { Task } from "@/lib/types";
+import { ACTIVE_COLS, DONE_COLS } from "@/lib/constants";
+import { fmtDuration } from "@/lib/utils";
 
 interface Stat {
   glyph: string;
@@ -9,50 +9,48 @@ interface Stat {
   label: string;
 }
 
-export function StatsBar({ cards }: { cards: Card[] }) {
-  const ideas    = cards.filter((c) => c.col === "ideas").length;
-  const inprog   = cards.filter((c) => ["plan", "prod", "edit"].includes(c.col)).length;
-  const sched    = cards.filter((c) => c.col === "sched").length;
-  const pubCount = cards.filter((c) => PAST_COLS.includes(c.col)).length;
-  const totViews = cards.reduce((s, c) => s + (c.views || 0), 0);
+export function StatsBar({ tasks }: { tasks: Task[] }) {
+  const inbox = tasks.filter((t) => t.col === "inbox").length;
+  const active = tasks.filter((t) => ACTIVE_COLS.includes(t.col)).length;
+  const sched = tasks.filter((t) => t.col === "sched").length;
+  const done = tasks.filter((t) => DONE_COLS.includes(t.col)).length;
+  const spent = tasks.reduce((s, t) => s + (t.spent || 0), 0);
 
   const stats: Stat[] = [
-    { glyph: "✦", tint: "#b599ff", value: ideas,            label: "Idées" },
-    { glyph: "◐", tint: "#ffb86b", value: inprog,           label: "En cours" },
-    { glyph: "◇", tint: "#5eead4", value: sched,            label: "Programmés" },
-    { glyph: "◆", tint: "#7aa2ff", value: pubCount,         label: "Publiés" },
-    { glyph: "▣", tint: "#ff6b35", value: fmtNum(totViews), label: "Vues totales" },
+    { glyph: "✦", tint: "#b599ff", value: inbox,               label: "À trier" },
+    { glyph: "◐", tint: "#ffb86b", value: active,              label: "En cours" },
+    { glyph: "◇", tint: "#14b8a6", value: sched,               label: "Planifiées" },
+    { glyph: "◆", tint: "#7aa2ff", value: done,                label: "Terminées" },
+    { glyph: "▣", tint: "#ff6b35", value: fmtDuration(spent),  label: "Temps passé" },
   ];
 
   return (
-    <div className="px-7 py-[12px] flex gap-3 flex-shrink-0 relative" style={{ borderBottom: "1px solid #ffffff08" }}>
+    <div className="px-7 py-[12px] flex gap-3 flex-shrink-0 relative border-b border-stroke1">
       {stats.map((s, i) => (
         <div
           key={s.label}
-          className="flex items-center gap-[10px] px-[14px] py-[9px] rounded-[11px] glass-soft flex-1 min-w-0 transition-all hover:border-white/[0.18]"
+          className="flex items-center gap-[10px] px-[14px] py-[9px] rounded-[11px] glass-soft flex-1 min-w-0 transition-all hover:border-stroke2"
         >
-          {/* Glyph capsule with colored glow */}
           <div
             className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-[15px] flex-shrink-0 relative"
             style={{
               background: `linear-gradient(135deg, ${s.tint}22, ${s.tint}08)`,
               border: `1px solid ${s.tint}30`,
               color: s.tint,
-              boxShadow: `inset 0 1px 0 ${s.tint}25, 0 0 14px -4px ${s.tint}66`,
             }}
+            aria-hidden
           >
             {s.glyph}
           </div>
           <div className="min-w-0">
-            <div className="font-mono text-[18px] font-semibold leading-none text-t1 tabular-nums" style={{ textShadow: `0 0 16px ${s.tint}40` }}>
+            <div className="font-mono text-[18px] font-semibold leading-none text-t1 tabular-nums">
               {s.value}
             </div>
             <div className="text-[10px] text-tm uppercase tracking-[0.8px] mt-[3px] font-medium">
               {s.label}
             </div>
           </div>
-          {/* Sparkline-like decorative tick */}
-          <div className="ml-auto flex flex-col items-end gap-[2px] text-td font-mono text-[8px] hidden md:flex">
+          <div className="ml-auto flex-col items-end gap-[2px] text-td font-mono text-[8px] hidden md:flex">
             <span>{String(i + 1).padStart(2, "0")}</span>
           </div>
         </div>

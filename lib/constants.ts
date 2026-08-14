@@ -1,37 +1,59 @@
-import type { ColumnDef, ColumnId, PlatformKey } from "./types";
+import type { CategoryKey, ColumnDef, ColumnId } from "./types";
 
 export const COLS: ColumnDef[] = [
-  { id: "ideas", label: "💡 Idées",        dotClass: "bg-violet-500", barClass: "bg-violet-500", hint: "Capturer toutes les idées ici" },
-  { id: "plan",  label: "📋 Planification", dotClass: "bg-blue-500",   barClass: "bg-blue-500",   hint: "Recherche, script, angle en cours" },
-  { id: "prod",  label: "🎬 Production",    dotClass: "bg-amber-500",  barClass: "bg-amber-500",  hint: "Tournage, rédaction, enregistrement" },
-  { id: "edit",  label: "✂️ Montage",       dotClass: "bg-pink-500",   barClass: "bg-pink-500",   hint: "Montage, édition, relecture" },
-  { id: "sched", label: "📅 Programmé",     dotClass: "bg-emerald-500",barClass: "bg-emerald-500",hint: "Prêt — en attente de publication" },
-  { id: "pub",   label: "✅ Publié",        dotClass: "bg-indigo-500", barClass: "bg-indigo-500", hint: "Contenu en ligne" },
-  { id: "arch",  label: "📊 Archive",       dotClass: "bg-gray-500",   barClass: "bg-gray-500",   hint: "Analyse & apprentissages" },
+  { id: "inbox",  label: "📥 À trier",     dotClass: "bg-violet-500",  barClass: "bg-violet-500",  hint: "Tout capturer ici, trier plus tard" },
+  { id: "todo",   label: "📋 À faire",     dotClass: "bg-blue-500",    barClass: "bg-blue-500",    hint: "Prêt à démarrer" },
+  { id: "doing",  label: "⚡ En cours",     dotClass: "bg-amber-500",   barClass: "bg-amber-500",   hint: "Travail en cours" },
+  { id: "review", label: "🔍 Vérification", dotClass: "bg-pink-500",    barClass: "bg-pink-500",    hint: "Relecture, validation, attente retour" },
+  { id: "sched",  label: "📅 Planifié",    dotClass: "bg-emerald-500", barClass: "bg-emerald-500", hint: "Programmé à une date précise" },
+  { id: "done",   label: "✅ Terminé",      dotClass: "bg-indigo-500",  barClass: "bg-indigo-500",  hint: "Fait — bien joué" },
+  { id: "arch",   label: "🗄️ Archivé",     dotClass: "bg-gray-500",    barClass: "bg-gray-500",    hint: "Hors du flux courant" },
 ];
 
-export const PLT_COLOR: Record<PlatformKey, string> = {
-  youtube: "#FF0000",
-  instagram: "#E1306C",
-  tiktok: "#010101",
-  blog: "#3b82f6",
-  linkedin: "#0077b5",
-  podcast: "#8b5cf6",
-  twitter: "#1da1f2",
-  facebook: "#1877f2",
+// Teintes choisies pour rester lisibles sur fond clair comme sur fond sombre
+// (texte blanc sur la pastille, texte teinté sur fond pâle).
+export const CAT_COLOR: Record<CategoryKey, string> = {
+  travail: "#2563eb",
+  perso:   "#db2777",
+  projet:  "#7c3aed",
+  etude:   "#d97706",
+  sante:   "#059669",
+  admin:   "#475569",
+  finance: "#0d9488",
+  maison:  "#ea580c",
 };
 
-export const PLT_LBL: Record<PlatformKey, string> = {
-  youtube: "▶ YouTube",
-  instagram: "◉ Instagram",
-  tiktok: "♫ TikTok",
-  blog: "✎ Blog",
-  linkedin: "⧉ LinkedIn",
-  podcast: "● Podcast",
-  twitter: "𝕏 Twitter",
-  facebook: "▣ Facebook",
+export const CAT_LBL: Record<CategoryKey, string> = {
+  travail: "💼 Travail",
+  perso:   "🏷 Perso",
+  projet:  "🚀 Projet",
+  etude:   "📚 Étude",
+  sante:   "🌿 Santé",
+  admin:   "🗂 Admin",
+  finance: "💳 Finance",
+  maison:  "🏠 Maison",
 };
 
-export const PAST_COLS: ColumnId[] = ["pub", "arch"];
+export const CATEGORIES = Object.keys(CAT_LBL) as CategoryKey[];
 
-export const STORAGE_KEY = "cf_cards";
+/** Types de tâche proposés dans le formulaire. */
+export const TASK_TYPES = [
+  "Tâche",
+  "Réunion",
+  "Appel",
+  "Rendez-vous",
+  "Course",
+  "Lecture",
+  "Rappel",
+  "Note",
+] as const;
+
+/** Colonnes considérées comme terminées — rétrospective + temps passé. */
+export const DONE_COLS: ColumnId[] = ["done", "arch"];
+
+/** Colonnes du travail actif. */
+export const ACTIVE_COLS: ColumnId[] = ["todo", "doing", "review"];
+
+export const STORAGE_KEY = "molotask_tasks";
+export const THEME_KEY = "molotask_theme";
+export const SIDEBAR_KEY = "molotask_sidebar";

@@ -1,46 +1,58 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Card, ColumnId, ViewId } from "@/lib/types";
-import { STORAGE_KEY } from "@/lib/constants";
-import { SAMPLE_CARDS } from "@/lib/sample-data";
+import type { ColumnId, Task, ViewId } from "@/lib/types";
+import { SIDEBAR_KEY, STORAGE_KEY } from "@/lib/constants";
+import { SAMPLE_TASKS } from "@/lib/sample-data";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 import { StatsBar } from "@/components/StatsBar";
 import { Board } from "@/components/Board";
-import { CardModal } from "@/components/CardModal";
+import { TaskModal } from "@/components/TaskModal";
 import { CursorAurora } from "@/components/CursorAurora";
 import { Dashboard } from "@/components/Dashboard";
 import { CalendarView } from "@/components/CalendarView";
 import { AnalyticsView } from "@/components/AnalyticsView";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function HomePage() {
-  const [cards, setCards] = useState<Card[]>(SAMPLE_CARDS);
+  const [tasks, setTasks] = useState<Task[]>(SAMPLE_TASKS);
   const [hydrated, setHydrated] = useState(false);
   const [search, setSearch] = useState("");
-  const [platform, setPlatform] = useState("");
   const [view, setView] = useState<ViewId>("board");
+  const [navCollapsed, setNavCollapsed] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Card | null>(null);
-  const [defaultCol, setDefaultCol] = useState<ColumnId>("ideas");
+  const [editing, setEditing] = useState<Task | null>(null);
+  const [defaultCol, setDefaultCol] = useState<ColumnId>("inbox");
 
   useEffect(() => {
     try {
       const s = localStorage.getItem(STORAGE_KEY);
-      if (s) setCards(JSON.parse(s));
+      if (s) setTasks(JSON.parse(s));
+      setNavCollapsed(localStorage.getItem(SIDEBAR_KEY) === "collapsed");
     } catch {}
     setHydrated(true);
+  }, []);
+
+  const toggleNav = useCallback(() => {
+    setNavCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SIDEBAR_KEY, next ? "collapsed" : "expanded");
+      } catch {}
+      return next;
+    });
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
     } catch {}
-  }, [cards, hydrated]);
+  }, [tasks, hydrated]);
 
-  const openAdd = useCallback((colId: ColumnId = "ideas") => {
+  const openAdd = useCallback((colId: ColumnId = "inbox") => {
     setEditing(null);
     setDefaultCol(colId);
     setModalOpen(true);
@@ -48,51 +60,52 @@ export default function HomePage() {
 
   const openEdit = useCallback(
     (id: string) => {
-      const c = cards.find((x) => x.id === id);
-      if (!c) return;
-      setEditing(c);
+      const t = tasks.find((x) => x.id === id);
+      if (!t) return;
+      setEditing(t);
       setModalOpen(true);
     },
-    [cards],
+    [tasks],
   );
 
   const handleDelete = useCallback((id: string) => {
-    if (confirm("Supprimer ce contenu définitivement ?")) {
-      setCards((prev) => prev.filter((c) => c.id !== id));
+    if (confirm("Supprimer cette tâche définitivement ?")) {
+      setTasks((prev) => prev.filter((t) => t.id !== id));
     }
   }, []);
 
-  const handleMove = useCallback((cardId: string, toCol: ColumnId) => {
-    setCards((prev) =>
-      prev.map((c) => (c.id === cardId && c.col !== toCol ? { ...c, col: toCol } : c)),
+  const handleMove = useCallback((taskId: string, toCol: ColumnId) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId && t.col !== toCol ? { ...t, col: toCol } : t)),
     );
   }, []);
 
-  const handleSave = useCallback(
-    (data: Omit<Card, "id"> & { id?: string }) => {
-      setCards((prev) => {
-        if (data.id) {
-          return prev.map((c) => (c.id === data.id ? { ...c, ...data, id: c.id } : c));
-        }
-        const newCard: Card = { ...data, id: "c" + Date.now() };
-        return [...prev, newCard];
-      });
-      setModalOpen(false);
-    },
-    [],
-  );
+  const handleSave = useCallback((data: Omit<Task, "id"> & { id?: string }) => {
+    setTasks((prev) => {
+      if (data.id) {
+        return prev.map((t) => (t.id === data.id ? { ...t, ...data, id: t.id } : t));
+      }
+      const newTask: Task = { ...data, id: "t" + Date.now() };
+      return [...prev, newTask];
+    });
+    setModalOpen(false);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setModalOpen(false);
-      if ((e.ctrlKey || e.metaKey) && e.key === "n") {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
-        openAdd("ideas");
+        openAdd("inbox");
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleNav();
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [openAdd]);
+  }, [openAdd, toggleNav]);
 
   return (
     <>
@@ -101,24 +114,22 @@ export default function HomePage() {
         <Sidebar
           view={view}
           onView={setView}
-          platform={platform}
-          onPlatform={setPlatform}
+          collapsed={navCollapsed}
+          onToggleCollapse={toggleNav}
         />
-        <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
+          <ThemeToggle className="absolute top-[16px] right-[20px] z-30" />
           {view === "board" && (
             <>
               <TopBar
                 search={search}
                 onSearch={setSearch}
-                platform={platform}
-                onPlatform={setPlatform}
-                onAdd={() => openAdd("ideas")}
+                onAdd={() => openAdd("inbox")}
               />
-              <StatsBar cards={cards} />
+              <StatsBar tasks={tasks} />
               <Board
-                cards={cards}
+                tasks={tasks}
                 search={search}
-                platform={platform}
                 onAdd={openAdd}
                 onEdit={openEdit}
                 onDelete={handleDelete}
@@ -129,8 +140,8 @@ export default function HomePage() {
 
           {view === "dashboard" && (
             <Dashboard
-              cards={cards}
-              onAdd={() => openAdd("ideas")}
+              tasks={tasks}
+              onAdd={() => openAdd("inbox")}
               onEdit={openEdit}
               onView={setView}
             />
@@ -138,18 +149,16 @@ export default function HomePage() {
 
           {view === "calendar" && (
             <CalendarView
-              cards={cards}
+              tasks={tasks}
               onAdd={() => openAdd("sched")}
               onEdit={openEdit}
             />
           )}
 
-          {view === "analytics" && (
-            <AnalyticsView cards={cards} onEdit={openEdit} />
-          )}
+          {view === "analytics" && <AnalyticsView tasks={tasks} onEdit={openEdit} />}
         </main>
 
-        <CardModal
+        <TaskModal
           open={modalOpen}
           editing={editing}
           defaultCol={defaultCol}

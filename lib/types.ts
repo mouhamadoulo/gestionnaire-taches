@@ -1,38 +1,43 @@
 export type ColumnId =
-  | "ideas"
-  | "plan"
-  | "prod"
-  | "edit"
+  | "inbox"
+  | "todo"
+  | "doing"
+  | "review"
   | "sched"
-  | "pub"
+  | "done"
   | "arch";
 
-export type PlatformKey =
-  | "youtube"
-  | "instagram"
-  | "tiktok"
-  | "blog"
-  | "linkedin"
-  | "podcast"
-  | "twitter"
-  | "facebook";
+/** Catégorie de tâche — remplace l'ancienne notion de plateforme. */
+export type CategoryKey =
+  | "travail"
+  | "perso"
+  | "projet"
+  | "etude"
+  | "sante"
+  | "admin"
+  | "finance"
+  | "maison";
 
 export type Priority = "high" | "med" | "low";
 
-export interface Card {
+export interface Task {
   id: string;
   col: ColumnId;
   title: string;
   desc: string;
-  plt: PlatformKey;
+  cat: CategoryKey;
   type: string;
   prio: Priority;
   date: string;
   tags: string[];
-  views: number;
-  likes: number;
+  /** Temps estimé, en minutes. */
+  estimate: number;
+  /** Temps réellement passé, en minutes (tâches terminées / archivées). */
+  spent: number;
+  /** Rétrospective — ce qui a marché, ce qu'il faut changer. */
   learning: string;
-  prodNotes: string;
+  /** Notes libres (méthode, outils, blocages). */
+  notes: string;
 }
 
 export interface ColumnDef {
@@ -44,3 +49,5 @@ export interface ColumnDef {
 }
 
 export type ViewId = "dashboard" | "board" | "calendar" | "analytics";
+
+export type ThemeMode = "dark" | "light";
