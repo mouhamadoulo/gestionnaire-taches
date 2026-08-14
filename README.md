@@ -4,6 +4,8 @@
 
 **Tableau Kanban pour piloter n'importe quelle tâche — travail, perso, projets, études.**
 
+[![CI](https://github.com/mouhamadoulo/gestionnaire-taches/actions/workflows/ci.yml/badge.svg)](https://github.com/mouhamadoulo/gestionnaire-taches/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-Vitest-22c55e?style=flat-square&logo=vitest&logoColor=white)](lib/__tests__)
 [![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -56,10 +58,17 @@ npm run dev     # http://localhost:3000
 Autres scripts :
 
 ```bash
-npm run build   # build de production
-npm run start   # sert le build
-npm run lint    # ESLint (next lint)
+npm run build     # build de production
+npm run start     # sert le build
+npm run lint      # ESLint (next lint)
+npm run typecheck # tsc --noEmit
+npm test          # Vitest, une passe
+npm run test:watch # Vitest en continu
 ```
+
+Les tests couvrent la logique pure de `lib/` (déplacement et tri des tâches, chronomètre,
+récurrence, relecture du stockage, import/export, filtres) : voir `lib/__tests__/`. Ils tournent
+dans la CI sur Node 20 et 22, avec le lint, le typecheck et le build.
 
 > ⚠️ Ne pas lancer `npm run build` pendant que `npm run dev` tourne : le build écrase
 > `.next` et le serveur de dev renvoie ensuite des 404 sur ses chunks JS. Redémarrer le
@@ -102,6 +111,9 @@ components/
   Dashboard.tsx  CalendarView.tsx  AnalyticsView.tsx
 lib/
   types.ts  constants.ts  columns.ts  utils.ts  use-theme.ts  sample-data.ts
+  __tests__/          # tests Vitest de la logique pure
+.github/
+  workflows/ci.yml    # lint, typecheck, tests, build (Node 20 et 22)
 docs/
   images/             # captures d'écran
   user-guide/         # guide utilisateur
