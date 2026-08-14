@@ -4,6 +4,7 @@
 
 **Tableau Kanban pour piloter n'importe quelle tâche — travail, perso, projets, études.**
 
+[![CI](https://github.com/mouhamadoulo/gestionnaire-taches/actions/workflows/ci.yml/badge.svg)](https://github.com/mouhamadoulo/gestionnaire-taches/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)

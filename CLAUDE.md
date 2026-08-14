@@ -14,11 +14,21 @@ npm install        # first time only
 npm run dev        # http://localhost:3000
 npm run build
 npm run start
+npm run lint       # ESLint (flat config, next/core-web-vitals + next/typescript)
+npm run typecheck  # tsc --noEmit
 ```
 
 > Do not run `npm run build` while `npm run dev` is running — the build overwrites `.next`
 > and the dev server then serves 404s for its JS chunks (page loads but is not interactive).
 > Restart the dev server after a build.
+
+### CI
+
+`.github/workflows/ci.yml` runs on every push and PR to `main` (plus `workflow_dispatch`):
+`npm ci` → `npm run lint -- --max-warnings=0` → `npm run typecheck` → `npm run build`,
+on Node 20 and 22. **A warning fails the build**, so a new ESLint warning has to be fixed or the
+rule tuned in `eslint.config.mjs` — not left in place. There is no deploy job: the app is
+client-only (`localStorage`), so nothing is published from CI.
 
 ## Architecture
 
