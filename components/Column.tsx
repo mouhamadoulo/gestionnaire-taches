@@ -1,32 +1,60 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { ColumnDef, ColumnId, Task } from "@/lib/types";
 import { TaskCard } from "./TaskCard";
 
 interface Props {
   col: ColumnDef;
   tasks: Task[];
+  canMoveLeft: boolean;
+  canMoveRight: boolean;
   onAdd: (colId: ColumnId) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onDrop: (colId: ColumnId) => void;
   onDragStart: (id: string, el: HTMLElement) => void;
   onDragEnd: (el: HTMLElement) => void;
+  onRenameCol: (colId: ColumnId) => void;
+  onMoveCol: (colId: ColumnId, dir: -1 | 1) => void;
+  onDeleteCol: (colId: ColumnId) => void;
 }
 
-// Accent par colonne (halo, liseré, pastille)
-export const COL_TINT: Record<ColumnId, string> = {
-  inbox:  "#8b5cf6",
-  todo:   "#3b82f6",
-  doing:  "#f59e0b",
-  review: "#ec4899",
-  sched:  "#14b8a6",
-  done:   "#6366f1",
-  arch:   "#64748b",
-};
+export function Column({
+  col,
+  tasks,
+  canMoveLeft,
+  canMoveRight,
+  onAdd,
+  onEdit,
+  onDelete,
+  onDrop,
+  onDragStart,
+  onDragEnd,
+  onRenameCol,
+  onMoveCol,
+  onDeleteCol,
+}: Props) {
+  const tint = col.tint;
+  const [menuOpen, setMenuOpen] = useState(false);
 
-export function Column({ col, tasks, onAdd, onEdit, onDelete, onDrop, onDragStart, onDragEnd }: Props) {
-  const tint = COL_TINT[col.id];
+  // Échap ferme le menu avant que la page ne traite la touche.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [menuOpen]);
+
+  const runAndClose = (fn: () => void) => {
+    setMenuOpen(false);
+    fn();
+  };
 
   return (
     <section
@@ -43,7 +71,7 @@ export function Column({ col, tasks, onAdd, onEdit, onDelete, onDrop, onDragStar
       />
 
       {/* En-tête */}
-      <div className="px-[14px] pt-[14px] pb-[10px] flex items-center gap-[9px] relative">
+      <div className="px-[14px] pt-[14px] pb-[10px] flex items-center gap-[7px] relative">
         <span
           aria-hidden
           className="w-[8px] h-[8px] rounded-full flex-shrink-0"
@@ -66,6 +94,55 @@ export function Column({ col, tasks, onAdd, onEdit, onDelete, onDrop, onDragStar
         >
           ＋
         </button>
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          title={`Options de « ${col.label} »`}
+          aria-label={`Options de la liste ${col.label}`}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          className="bg-transparent border-none text-tm hover:text-t1 hover:bg-fill2 cursor-pointer text-[14px] w-[20px] h-[20px] rounded leading-none transition-colors flex items-center justify-center"
+        >
+          ⋯
+        </button>
+
+        {menuOpen && (
+          <>
+            {/* Ferme le menu au clic à l'extérieur */}
+            <div
+              className="fixed inset-0 z-40"
+              aria-hidden
+              onClick={() => setMenuOpen(false)}
+            />
+            <div
+              role="menu"
+              aria-label={`Options de ${col.label}`}
+              className="panel-hi absolute right-[10px] top-[40px] z-50 w-[184px] rounded-[11px] py-[5px] overflow-hidden shadow-glass"
+            >
+              <MenuItem label="Renommer" icon="✎" onClick={() => runAndClose(() => onRenameCol(col.id))} />
+              <MenuItem
+                label="Déplacer à gauche"
+                icon="←"
+                disabled={!canMoveLeft}
+                onClick={() => runAndClose(() => onMoveCol(col.id, -1))}
+              />
+              <MenuItem
+                label="Déplacer à droite"
+                icon="→"
+                disabled={!canMoveRight}
+                onClick={() => runAndClose(() => onMoveCol(col.id, 1))}
+              />
+              <div className="h-px bg-stroke1 my-[4px]" aria-hidden />
+              <MenuItem
+                label="Supprimer"
+                icon="🗑"
+                danger
+                disabled={col.locked}
+                title={col.locked ? "Liste structurelle — non supprimable" : undefined}
+                onClick={() => runAndClose(() => onDeleteCol(col.id))}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Zone de dépôt */}
@@ -99,7 +176,7 @@ export function Column({ col, tasks, onAdd, onEdit, onDelete, onDrop, onDragStar
               ＋
             </span>
             <span className="font-mono text-[10px] uppercase tracking-[0.8px] opacity-80">
-              {col.hint}
+              {col.hint || "Ajouter une tâche"}
             </span>
           </button>
         ) : (
@@ -117,5 +194,41 @@ export function Column({ col, tasks, onAdd, onEdit, onDelete, onDrop, onDragStar
         )}
       </div>
     </section>
+  );
+}
+
+function MenuItem({
+  label,
+  icon,
+  onClick,
+  disabled,
+  danger,
+  title,
+}: {
+  label: string;
+  icon: string;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      role="menuitem"
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`w-full text-left px-[12px] py-[7px] text-[11.5px] flex items-center gap-[9px] bg-transparent border-none transition-colors ${
+        disabled
+          ? "text-td cursor-not-allowed"
+          : danger
+          ? "text-t2 hover:bg-fill2 cursor-pointer hover:text-[color:var(--bad)]"
+          : "text-t2 hover:bg-fill2 hover:text-t1 cursor-pointer"
+      }`}
+    >
+      <span className="w-[14px] text-center text-[11px]" aria-hidden>{icon}</span>
+      {label}
+    </button>
   );
 }

@@ -20,11 +20,14 @@
 
 ## Ce que c'est
 
-Un kanban à sept colonnes qui suit une tâche de son arrivée à son archivage :
+Un kanban qui suit une tâche de son arrivée à son archivage :
 
 ```
 À trier → À faire → En cours → Vérification → Planifié → Terminé → Archivé
 ```
+
+Ces sept listes sont le point de départ : elles se renomment, se recolorent, se
+réordonnent, et vous pouvez en ajouter autant que vous voulez.
 
 Chaque tâche porte une catégorie, un type, une priorité, une échéance, des tags,
 un temps estimé et — une fois terminée — un temps réellement passé et une note
@@ -34,7 +37,8 @@ rétrospective. C'est ce couple *estimé / passé* qui alimente la vue Analytiqu
 
 | | |
 |---|---|
-| **Tableau kanban** | 7 colonnes, glisser-déposer entre colonnes, défilement horizontal à la molette, auto-scroll près des bords pendant un glisser |
+| **Tableau kanban** | glisser-déposer entre listes, défilement horizontal à la molette, auto-scroll près des bords pendant un glisser |
+| **Listes** | 7 listes fournies, plus les vôtres : ajout, renommage, teinte, déplacement, suppression (les tâches repartent dans « À trier ») |
 | **Tâches** | création et édition en modale, catégorie, type, priorité, échéance, tags, temps estimé |
 | **Recherche** | filtre instantané sur le titre, la description et les tags |
 | **Dashboard** | flux des colonnes, prochaines échéances, retards, temps investi, répartition par catégorie |
@@ -91,12 +95,13 @@ components/
   TopBar.tsx          # titre, recherche, « Nouvelle tâche »
   StatsBar.tsx        # cinq compteurs dérivés des tâches
   Board.tsx           # conteneur horizontal, drag & drop, défilement
-  Column.tsx          # une colonne du kanban
+  Column.tsx          # une liste du kanban (en-tête, menu ⋯, zone de dépôt)
   TaskCard.tsx        # une carte
-  TaskModal.tsx       # création / édition
+  TaskModal.tsx       # création / édition d'une tâche
+  ColumnModal.tsx     # création / renommage d'une liste
   Dashboard.tsx  CalendarView.tsx  AnalyticsView.tsx
 lib/
-  types.ts  constants.ts  utils.ts  use-theme.ts  sample-data.ts
+  types.ts  constants.ts  columns.ts  utils.ts  use-theme.ts  sample-data.ts
 docs/
   images/             # captures d'écran
   user-guide/         # guide utilisateur
@@ -109,6 +114,7 @@ Tout vit dans le navigateur — pas de serveur, pas de compte.
 | Clé `localStorage` | Contenu |
 |---|---|
 | `molotask_tasks` | la liste des tâches (JSON) |
+| `molotask_columns` | les listes du tableau : nom, indice, teinte, ordre (JSON) |
 | `molotask_theme` | `dark` ou `light` |
 | `molotask_sidebar` | `collapsed` ou `expanded` |
 

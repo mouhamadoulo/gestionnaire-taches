@@ -1,19 +1,20 @@
 "use client";
 
 import { useMemo } from "react";
-import type { CategoryKey, Task, ViewId } from "@/lib/types";
-import { ACTIVE_COLS, CAT_COLOR, CAT_LBL, COLS, DONE_COLS } from "@/lib/constants";
+import type { CategoryKey, ColumnDef, Task, ViewId } from "@/lib/types";
+import { ACTIVE_COLS, CAT_COLOR, CAT_LBL, DONE_COLS } from "@/lib/constants";
+import { tintOf } from "@/lib/columns";
 import { fmtDuration } from "@/lib/utils";
-import { COL_TINT } from "./Column";
 
 interface Props {
   tasks: Task[];
+  columns: ColumnDef[];
   onAdd: () => void;
   onEdit: (id: string) => void;
   onView: (v: ViewId) => void;
 }
 
-export function Dashboard({ tasks, onAdd, onEdit, onView }: Props) {
+export function Dashboard({ tasks, columns, onAdd, onEdit, onView }: Props) {
   const stats = useMemo(() => computeStats(tasks), [tasks]);
 
   const upcoming = useMemo(() => {
@@ -124,12 +125,12 @@ export function Dashboard({ tasks, onAdd, onEdit, onView }: Props) {
           </div>
 
           <div className="flex items-center gap-[2px] h-[58px]">
-            {COLS.map((col, i) => {
+            {columns.map((col, i) => {
               const count = tasks.filter((t) => t.col === col.id).length;
               const total = tasks.length || 1;
               const pct = (count / total) * 100;
-              const tint = COL_TINT[col.id];
-              const isLast = i === COLS.length - 1;
+              const tint = col.tint;
+              const isLast = i === columns.length - 1;
               return (
                 <div key={col.id} className="flex items-stretch h-full flex-1 min-w-0">
                   <button
@@ -215,7 +216,7 @@ export function Dashboard({ tasks, onAdd, onEdit, onView }: Props) {
             ) : (
               <ul className="flex flex-col gap-[6px]">
                 {upcoming.map((t) => {
-                  const tint = COL_TINT[t.col];
+                  const tint = tintOf(columns, t.col);
                   const days = daysUntil(t.date);
                   return (
                     <li key={t.id}>

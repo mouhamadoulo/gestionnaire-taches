@@ -1,24 +1,40 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { ColumnId, Task } from "@/lib/types";
-import { COLS } from "@/lib/constants";
+import type { ColumnDef, ColumnId, Task } from "@/lib/types";
 import { Column } from "./Column";
 
 interface Props {
   tasks: Task[];
+  columns: ColumnDef[];
   search: string;
   onAdd: (colId: ColumnId) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onMove: (taskId: string, toCol: ColumnId) => void;
+  onAddCol: () => void;
+  onRenameCol: (colId: ColumnId) => void;
+  onMoveCol: (colId: ColumnId, dir: -1 | 1) => void;
+  onDeleteCol: (colId: ColumnId) => void;
 }
 
 // Défilement automatique quand on glisse une carte près d'un bord
 const EDGE = 90;      // px : zone sensible
 const EDGE_SPEED = 18; // px par image
 
-export function Board({ tasks, search, onAdd, onEdit, onDelete, onMove }: Props) {
+export function Board({
+  tasks,
+  columns,
+  search,
+  onAdd,
+  onEdit,
+  onDelete,
+  onMove,
+  onAddCol,
+  onRenameCol,
+  onMoveCol,
+  onDeleteCol,
+}: Props) {
   const dragIdRef = useRef<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const edgeDirRef = useRef(0);
@@ -118,19 +134,39 @@ export function Board({ tasks, search, onAdd, onEdit, onDelete, onMove }: Props)
       className="board-scroll flex-1 overflow-x-auto overflow-y-hidden px-7 pt-6 pb-3 relative"
     >
       <div className="flex gap-[16px] h-full min-w-fit stagger">
-        {COLS.map((col) => (
+        {columns.map((col, i) => (
           <Column
             key={col.id}
             col={col}
             tasks={filtered.filter((t) => t.col === col.id)}
+            canMoveLeft={i > 0}
+            canMoveRight={i < columns.length - 1}
             onAdd={onAdd}
             onEdit={onEdit}
             onDelete={onDelete}
             onDrop={handleDrop}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
+            onRenameCol={onRenameCol}
+            onMoveCol={onMoveCol}
+            onDeleteCol={onDeleteCol}
           />
         ))}
+
+        <button
+          type="button"
+          onClick={onAddCol}
+          title="Créer une nouvelle liste"
+          className="dashed w-[286px] flex-shrink-0 flex flex-col items-center justify-center gap-2 rounded-[14px] py-8 self-start text-tm hover:text-t1 cursor-pointer transition-all"
+        >
+          <span
+            aria-hidden
+            className="text-[16px] w-[28px] h-[28px] rounded-full flex items-center justify-center bg-acc/[0.10] text-acc border border-dashed border-acc/50"
+          >
+            ＋
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-[1.2px]">Nouvelle liste</span>
+        </button>
       </div>
     </div>
   );

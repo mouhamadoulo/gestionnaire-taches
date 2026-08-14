@@ -1,14 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { ColumnId, Task, ViewId } from "@/lib/types";
-import { SIDEBAR_KEY, STORAGE_KEY } from "@/lib/constants";
+import type { ColumnDef, ColumnId, Task, ViewId } from "@/lib/types";
+import {
+  COLUMNS_KEY,
+  DEFAULT_COLS,
+  INBOX_COL,
+  SIDEBAR_KEY,
+  STORAGE_KEY,
+} from "@/lib/constants";
+import { moveColumn, newColumnId, sanitizeColumns } from "@/lib/columns";
 import { SAMPLE_TASKS } from "@/lib/sample-data";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 import { StatsBar } from "@/components/StatsBar";
 import { Board } from "@/components/Board";
 import { TaskModal } from "@/components/TaskModal";
+import { ColumnModal } from "@/components/ColumnModal";
 import { CursorAurora } from "@/components/CursorAurora";
 import { Dashboard } from "@/components/Dashboard";
 import { CalendarView } from "@/components/CalendarView";
@@ -17,6 +25,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>(SAMPLE_TASKS);
+  const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLS);
   const [hydrated, setHydrated] = useState(false);
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewId>("board");
@@ -24,12 +33,17 @@ export default function HomePage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
-  const [defaultCol, setDefaultCol] = useState<ColumnId>("inbox");
+  const [defaultCol, setDefaultCol] = useState<ColumnId>(INBOX_COL);
+
+  const [colModalOpen, setColModalOpen] = useState(false);
+  const [editingCol, setEditingCol] = useState<ColumnDef | null>(null);
 
   useEffect(() => {
     try {
       const s = localStorage.getItem(STORAGE_KEY);
       if (s) setTasks(JSON.parse(s));
+      const c = localStorage.getItem(COLUMNS_KEY);
+      if (c) setColumns(sanitizeColumns(JSON.parse(c)));
       setNavCollapsed(localStorage.getItem(SIDEBAR_KEY) === "collapsed");
     } catch {}
     setHydrated(true);
@@ -52,7 +66,14 @@ export default function HomePage() {
     } catch {}
   }, [tasks, hydrated]);
 
-  const openAdd = useCallback((colId: ColumnId = "inbox") => {
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(COLUMNS_KEY, JSON.stringify(columns));
+    } catch {}
+  }, [columns, hydrated]);
+
+  const openAdd = useCallback((colId: ColumnId = INBOX_COL) => {
     setEditing(null);
     setDefaultCol(colId);
     setModalOpen(true);
@@ -91,9 +112,62 @@ export default function HomePage() {
     setModalOpen(false);
   }, []);
 
+  const openAddCol = useCallback(() => {
+    setEditingCol(null);
+    setColModalOpen(true);
+  }, []);
+
+  const openRenameCol = useCallback(
+    (colId: ColumnId) => {
+      const c = columns.find((x) => x.id === colId);
+      if (!c) return;
+      setEditingCol(c);
+      setColModalOpen(true);
+    },
+    [columns],
+  );
+
+  const handleSaveCol = useCallback(
+    (data: { id?: string; label: string; hint: string; tint: string }) => {
+      setColumns((prev) => {
+        if (data.id) {
+          return prev.map((c) =>
+            c.id === data.id ? { ...c, label: data.label, hint: data.hint, tint: data.tint } : c,
+          );
+        }
+        return [...prev, { id: newColumnId(), label: data.label, hint: data.hint, tint: data.tint }];
+      });
+      setColModalOpen(false);
+    },
+    [],
+  );
+
+  const handleMoveCol = useCallback((colId: ColumnId, dir: -1 | 1) => {
+    setColumns((prev) => moveColumn(prev, colId, dir));
+  }, []);
+
+  const handleDeleteCol = useCallback(
+    (colId: ColumnId) => {
+      const col = columns.find((c) => c.id === colId);
+      if (!col || col.locked) return;
+      const n = tasks.filter((t) => t.col === colId).length;
+      const suite =
+        n === 0
+          ? ""
+          : `\n\n${n} tâche${n > 1 ? "s" : ""} y ${n > 1 ? "sont" : "est"} rangée${n > 1 ? "s" : ""} — elle${n > 1 ? "s" : ""} repartira${n > 1 ? "ont" : ""} dans « À trier ».`;
+      if (!confirm(`Supprimer la liste « ${col.label} » ?${suite}`)) return;
+      setTasks((prev) => prev.map((t) => (t.col === colId ? { ...t, col: INBOX_COL } : t)));
+      setColumns((prev) => prev.filter((c) => c.id !== colId));
+    },
+    [columns, tasks],
+  );
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setModalOpen(false);
+      if (e.key === "Escape") {
+        setModalOpen(false);
+        setColModalOpen(false);
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         openAdd("inbox");
@@ -129,11 +203,16 @@ export default function HomePage() {
               <StatsBar tasks={tasks} />
               <Board
                 tasks={tasks}
+                columns={columns}
                 search={search}
                 onAdd={openAdd}
                 onEdit={openEdit}
                 onDelete={handleDelete}
                 onMove={handleMove}
+                onAddCol={openAddCol}
+                onRenameCol={openRenameCol}
+                onMoveCol={handleMoveCol}
+                onDeleteCol={handleDeleteCol}
               />
             </>
           )}
@@ -141,7 +220,8 @@ export default function HomePage() {
           {view === "dashboard" && (
             <Dashboard
               tasks={tasks}
-              onAdd={() => openAdd("inbox")}
+              columns={columns}
+              onAdd={() => openAdd(INBOX_COL)}
               onEdit={openEdit}
               onView={setView}
             />
@@ -150,6 +230,7 @@ export default function HomePage() {
           {view === "calendar" && (
             <CalendarView
               tasks={tasks}
+              columns={columns}
               onAdd={() => openAdd("sched")}
               onEdit={openEdit}
             />
@@ -161,9 +242,17 @@ export default function HomePage() {
         <TaskModal
           open={modalOpen}
           editing={editing}
+          columns={columns}
           defaultCol={defaultCol}
           onClose={() => setModalOpen(false)}
           onSave={handleSave}
+        />
+
+        <ColumnModal
+          open={colModalOpen}
+          editing={editingCol}
+          onClose={() => setColModalOpen(false)}
+          onSave={handleSaveCol}
         />
       </div>
     </>

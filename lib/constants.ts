@@ -1,14 +1,36 @@
 import type { CategoryKey, ColumnDef, ColumnId } from "./types";
 
-export const COLS: ColumnDef[] = [
-  { id: "inbox",  label: "📥 À trier",     dotClass: "bg-violet-500",  barClass: "bg-violet-500",  hint: "Tout capturer ici, trier plus tard" },
-  { id: "todo",   label: "📋 À faire",     dotClass: "bg-blue-500",    barClass: "bg-blue-500",    hint: "Prêt à démarrer" },
-  { id: "doing",  label: "⚡ En cours",     dotClass: "bg-amber-500",   barClass: "bg-amber-500",   hint: "Travail en cours" },
-  { id: "review", label: "🔍 Vérification", dotClass: "bg-pink-500",    barClass: "bg-pink-500",    hint: "Relecture, validation, attente retour" },
-  { id: "sched",  label: "📅 Planifié",    dotClass: "bg-emerald-500", barClass: "bg-emerald-500", hint: "Programmé à une date précise" },
-  { id: "done",   label: "✅ Terminé",      dotClass: "bg-indigo-500",  barClass: "bg-indigo-500",  hint: "Fait — bien joué" },
-  { id: "arch",   label: "🗄️ Archivé",     dotClass: "bg-gray-500",    barClass: "bg-gray-500",    hint: "Hors du flux courant" },
+/**
+ * Colonnes livrées avec l'application. Elles servent de graine : dès la
+ * première visite elles sont copiées dans l'état `columns` de `HomePage`, que
+ * l'utilisateur peut ensuite renommer, réordonner et compléter.
+ *
+ * `locked` marque les colonnes dont l'identifiant est référencé en dur par les
+ * statistiques (voir StatsBar, Dashboard, DONE_COLS) : on peut les renommer et
+ * les déplacer, pas les supprimer.
+ */
+export const DEFAULT_COLS: ColumnDef[] = [
+  { id: "inbox",  label: "📥 À trier",      tint: "#8b5cf6", locked: true, hint: "Tout capturer ici, trier plus tard" },
+  { id: "todo",   label: "📋 À faire",      tint: "#3b82f6", hint: "Prêt à démarrer" },
+  { id: "doing",  label: "⚡ En cours",      tint: "#f59e0b", hint: "Travail en cours" },
+  { id: "review", label: "🔍 Vérification", tint: "#ec4899", hint: "Relecture, validation, attente retour" },
+  { id: "sched",  label: "📅 Planifié",     tint: "#14b8a6", locked: true, hint: "Programmé à une date précise" },
+  { id: "done",   label: "✅ Terminé",       tint: "#6366f1", locked: true, hint: "Fait — bien joué" },
+  { id: "arch",   label: "🗄️ Archivé",      tint: "#64748b", locked: true, hint: "Hors du flux courant" },
 ];
+
+/** Teintes proposées à la création d'une liste. */
+export const COLUMN_TINTS = [
+  "#8b5cf6", "#3b82f6", "#0ea5e9", "#14b8a6",
+  "#22c55e", "#f59e0b", "#f97316", "#ef4444",
+  "#ec4899", "#64748b",
+] as const;
+
+/** Teinte de repli quand une tâche pointe vers une colonne disparue. */
+export const FALLBACK_TINT = "#64748b";
+
+/** Colonne d'accueil : les tâches d'une liste supprimée y retournent. */
+export const INBOX_COL = "inbox";
 
 // Teintes choisies pour rester lisibles sur fond clair comme sur fond sombre
 // (texte blanc sur la pastille, texte teinté sur fond pâle).
@@ -55,5 +77,6 @@ export const DONE_COLS: ColumnId[] = ["done", "arch"];
 export const ACTIVE_COLS: ColumnId[] = ["todo", "doing", "review"];
 
 export const STORAGE_KEY = "molotask_tasks";
+export const COLUMNS_KEY = "molotask_columns";
 export const THEME_KEY = "molotask_theme";
 export const SIDEBAR_KEY = "molotask_sidebar";
