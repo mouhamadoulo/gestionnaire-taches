@@ -16,6 +16,7 @@ interface Props {
   onAdd: (colId: ColumnId) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onToggleTimer: (id: string) => void;
   /** `beforeId` : tâche devant laquelle déposer, `null` pour la fin de liste. */
   onDrop: (colId: ColumnId, beforeId: string | null) => void;
   onDragStart: (id: string, el: HTMLElement) => void;
@@ -36,6 +37,7 @@ export function Column({
   onAdd,
   onEdit,
   onDelete,
+  onToggleTimer,
   onDrop,
   onDragStart,
   onDragEnd,
@@ -241,6 +243,7 @@ export function Column({
                   today={today}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  onToggleTimer={onToggleTimer}
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
                 />

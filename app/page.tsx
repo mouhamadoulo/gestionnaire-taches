@@ -18,6 +18,8 @@ import {
   reassignColumn,
   sanitizeTasks,
   sortColumn,
+  startTimer,
+  stopTimer,
   withColumn,
 } from "@/lib/tasks";
 import { backupFilename, buildBackup, downloadJson, parseBackup } from "@/lib/backup";
@@ -180,6 +182,22 @@ export default function HomePage() {
     setTasks((prev) => moveTask(prev, taskId, toCol, beforeId, at));
   }, []);
 
+  /* Un seul chronomètre à la fois : démarrer une tâche arrête celle qui
+     tournait, sinon on oublie un compteur en route et `spent` devient faux. */
+  const handleToggleTimer = useCallback((taskId: string) => {
+    const at = nowIso();
+    const now = Date.now();
+    setTasks((prev) => {
+      const target = prev.find((t) => t.id === taskId);
+      if (!target) return prev;
+      const starting = !target.startedAt;
+      return prev.map((t) => {
+        if (t.id === taskId) return starting ? startTimer(t, at) : stopTimer(t, now);
+        return t.startedAt ? stopTimer(t, now) : t;
+      });
+    });
+  }, []);
+
   const handleSortCol = useCallback(
     (colId: ColumnId, key: SortKey) => {
       const col = stateRef.current.columns.find((c) => c.id === colId);
@@ -206,6 +224,7 @@ export default function HomePage() {
         {
           ...data,
           id: "t" + Date.now(),
+          startedAt: "",
           createdAt: at,
           movedAt: at,
           doneAt: isDoneCol(data.col) ? at : "",
@@ -383,6 +402,7 @@ export default function HomePage() {
                 onAdd={openAdd}
                 onEdit={openEdit}
                 onDelete={handleDelete}
+                onToggleTimer={handleToggleTimer}
                 onMove={handleMove}
                 onAddCol={openAddCol}
                 onRenameCol={openRenameCol}

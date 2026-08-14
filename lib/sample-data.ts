@@ -2,7 +2,7 @@ import type { Task } from "./types";
 import { isDoneCol } from "./tasks";
 
 /** Les horodatages du jeu d'exemple sont dérivés de l'échéance. */
-type SeedTask = Omit<Task, "createdAt" | "movedAt" | "doneAt" | "steps"> & {
+type SeedTask = Omit<Task, "createdAt" | "movedAt" | "doneAt" | "steps" | "startedAt"> & {
   steps?: [string, boolean][];
 };
 
@@ -33,10 +33,17 @@ function seed(t: SeedTask): Task {
 
   if (isDoneCol(t.col) && t.date) {
     const doneAt = shift(t.date, 0, "17:30:00");
-    return { ...t, steps, createdAt: shift(t.date, -14, "09:00:00"), movedAt: doneAt, doneAt };
+    return {
+      ...t,
+      steps,
+      startedAt: "",
+      createdAt: shift(t.date, -14, "09:00:00"),
+      movedAt: doneAt,
+      doneAt,
+    };
   }
   const createdAt = t.date ? shift(t.date, -7, "09:00:00") : SEED_ORIGIN;
-  return { ...t, steps, createdAt, movedAt: createdAt, doneAt: "" };
+  return { ...t, steps, startedAt: "", createdAt, movedAt: createdAt, doneAt: "" };
 }
 
 const SEED: SeedTask[] = [

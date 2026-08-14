@@ -41,6 +41,11 @@ export interface Task {
   estimate: number;
   /** Temps réellement passé, en minutes (tâches terminées / archivées). */
   spent: number;
+  /**
+   * Début du chronomètre en cours, en ISO 8601 ; chaîne vide à l'arrêt.
+   * Persisté, donc un chronomètre survit à un rechargement de page.
+   */
+  startedAt: string;
   /** Rétrospective — ce qui a marché, ce qu'il faut changer. */
   learning: string;
   /** Notes libres (méthode, outils, blocages). */
@@ -65,7 +70,10 @@ export interface Task {
  * en cas d'édition. Les horodatages sont posés par `HomePage`, jamais par le
  * formulaire.
  */
-export type TaskDraft = Omit<Task, "id" | "createdAt" | "movedAt" | "doneAt"> & { id?: string };
+export type TaskDraft = Omit<
+  Task,
+  "id" | "createdAt" | "movedAt" | "doneAt" | "startedAt"
+> & { id?: string };
 
 export interface ColumnDef {
   id: ColumnId;

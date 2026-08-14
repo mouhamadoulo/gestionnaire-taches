@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { Task } from "@/lib/types";
 import { CAT_COLOR, CAT_LBL, DONE_COLS } from "@/lib/constants";
 import { isDueToday, isOverdue } from "@/lib/filters";
-import { stepProgress } from "@/lib/tasks";
+import { elapsedMinutes, stepProgress } from "@/lib/tasks";
 import { fmtDate, fmtDuration } from "@/lib/utils";
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
   today: string;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onToggleTimer: (id: string) => void;
   onDragStart: (id: string, el: HTMLElement) => void;
   onDragEnd: (el: HTMLElement) => void;
 }
@@ -23,7 +25,27 @@ const PRIO_TINT: Record<string, { hex: string; label: string }> = {
   low:  { hex: "#14b8a6", label: "Basse" },
 };
 
-export function TaskCard({ task, tint, today, onEdit, onDelete, onDragStart, onDragEnd }: Props) {
+export function TaskCard({
+  task,
+  tint,
+  today,
+  onEdit,
+  onDelete,
+  onToggleTimer,
+  onDragStart,
+  onDragEnd,
+}: Props) {
+  /* Chronomètre en cours : la carte se rafraîchit toute seule, sans faire
+     battre tout le tableau. */
+  const running = Boolean(task.startedAt);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => tick((n) => n + 1), 15_000);
+    return () => clearInterval(t);
+  }, [running]);
+  const elapsed = running ? elapsedMinutes(task) : 0;
+
   const catColor = CAT_COLOR[task.cat] || "#64748b";
   const catLabel = CAT_LBL[task.cat] || task.cat;
   const isDone = DONE_COLS.includes(task.col);
@@ -181,13 +203,52 @@ export function TaskCard({ task, tint, today, onEdit, onDelete, onDragStart, onD
                 {fmtDate(task.date)}
               </span>
             )}
-            {!isDone && task.estimate > 0 && (
+            {!isDone && !running && task.estimate > 0 && (
               <span className="font-mono text-[10px] text-td tabular-nums">
                 ⏱ {fmtDuration(task.estimate)}
               </span>
             )}
+            {running && (
+              <span
+                className="font-mono text-[10px] tabular-nums flex items-center gap-[4px]"
+                style={{ color: "var(--warn)" }}
+                title="Chronomètre en cours"
+              >
+                <span className="w-[6px] h-[6px] rounded-full bg-current animate-breathe" aria-hidden />
+                {fmtDuration(task.spent + elapsed)}
+              </span>
+            )}
           </div>
           <div className="flex gap-[3px] opacity-70 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            {!isDone && (
+              <button
+                draggable={false}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleTimer(task.id);
+                }}
+                title={running ? "Arrêter le chronomètre" : "Démarrer le chronomètre"}
+                aria-label={
+                  running
+                    ? `Arrêter le chronomètre de « ${task.title} »`
+                    : `Démarrer le chronomètre de « ${task.title} »`
+                }
+                aria-pressed={running}
+                className="btn-ghost w-[26px] h-[26px] rounded-[7px] text-[10px] leading-none flex items-center justify-center"
+                style={
+                  running
+                    ? {
+                        color: "var(--warn)",
+                        borderColor: "rgba(245,158,11,0.5)",
+                        background: "rgba(245,158,11,0.12)",
+                      }
+                    : undefined
+                }
+              >
+                {running ? "■" : "▶"}
+              </button>
+            )}
             <button
               draggable={false}
               onMouseDown={(e) => e.stopPropagation()}

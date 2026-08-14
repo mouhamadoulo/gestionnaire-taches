@@ -11,6 +11,30 @@ export function newStepId(): string {
   return "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
+/** Minutes écoulées depuis le démarrage du chronomètre, 0 s'il est à l'arrêt. */
+export function elapsedMinutes(t: Task, now: number = Date.now()): number {
+  if (!t.startedAt) return 0;
+  const from = new Date(t.startedAt).getTime();
+  if (Number.isNaN(from) || now <= from) return 0;
+  return Math.round((now - from) / 60_000);
+}
+
+/** Temps passé affiché : le total enregistré plus le chronomètre en cours. */
+export function liveSpent(t: Task, now: number = Date.now()): number {
+  return (t.spent || 0) + elapsedMinutes(t, now);
+}
+
+/** Démarre le chronomètre. */
+export function startTimer(t: Task, at: string = nowIso()): Task {
+  return t.startedAt ? t : { ...t, startedAt: at };
+}
+
+/** Arrête le chronomètre et verse le temps écoulé dans `spent`. */
+export function stopTimer(t: Task, now: number = Date.now()): Task {
+  if (!t.startedAt) return t;
+  return { ...t, spent: (t.spent || 0) + elapsedMinutes(t, now), startedAt: "" };
+}
+
 /** Avancement de la checklist ; `total` à 0 quand la tâche n'en a pas. */
 export function stepProgress(t: Task): { done: number; total: number } {
   const steps = t.steps || [];
@@ -32,8 +56,11 @@ export function isDoneCol(col: ColumnId): boolean {
 export function withColumn(task: Task, toCol: ColumnId, at: string = nowIso()): Task {
   if (task.col === toCol) return task;
   const nowDone = isDoneCol(toCol);
+  // Terminer une tâche arrête son chronomètre : le temps en cours est versé
+  // dans `spent` plutôt que perdu.
+  const base = nowDone ? stopTimer(task, new Date(at).getTime() || Date.now()) : task;
   return {
-    ...task,
+    ...base,
     col: toCol,
     movedAt: at,
     doneAt: nowDone ? task.doneAt || at : "",
@@ -115,6 +142,8 @@ export function sanitizeTasks(raw: unknown): Task[] {
       steps: steps(e.steps),
       estimate: num(e.estimate),
       spent: num(e.spent),
+      // Un chronomètre laissé tourner sur une tâche terminée n'a pas de sens.
+      startedAt: isDoneCol(col) ? "" : iso(e.startedAt),
       learning: str(e.learning),
       notes: str(e.notes),
       createdAt: iso(e.createdAt),
