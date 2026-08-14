@@ -11,6 +11,7 @@ import {
 } from "@/lib/constants";
 import { moveColumn, newColumnId, sanitizeColumns } from "@/lib/columns";
 import { isDoneCol, nowIso, reassignColumn, sanitizeTasks, withColumn } from "@/lib/tasks";
+import { backupFilename, buildBackup, downloadJson, parseBackup } from "@/lib/backup";
 import { SAMPLE_TASKS } from "@/lib/sample-data";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
@@ -217,6 +218,38 @@ export default function HomePage() {
     [columns, tasks, offerUndo],
   );
 
+  const handleExport = useCallback(() => {
+    const { tasks: t, columns: c } = stateRef.current;
+    downloadJson(backupFilename(), buildBackup(t, c));
+  }, []);
+
+  /* L'import remplace tout : le bandeau d'annulation est le filet, on ne
+     demande donc qu'une confirmation, avec le décompte de ce qui arrive. */
+  const handleImport = useCallback(
+    async (file: File) => {
+      let data: { tasks: Task[]; columns: ColumnDef[] };
+      try {
+        data = parseBackup(await file.text());
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Fichier illisible.");
+        return;
+      }
+
+      const current = stateRef.current.tasks.length;
+      const msg =
+        `Importer ${data.tasks.length} tâche${data.tasks.length > 1 ? "s" : ""} ` +
+        `et ${data.columns.length} liste${data.columns.length > 1 ? "s" : ""} ?\n\n` +
+        `Vos ${current} tâche${current > 1 ? "s" : ""} actuelle${current > 1 ? "s" : ""} ` +
+        `${current > 1 ? "seront remplacées" : "sera remplacée"} — annulable juste après.`;
+      if (!confirm(msg)) return;
+
+      offerUndo(`Sauvegarde importée (${data.tasks.length} tâches).`);
+      setTasks(data.tasks);
+      setColumns(data.columns);
+    },
+    [offerUndo],
+  );
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -256,6 +289,8 @@ export default function HomePage() {
           onView={setView}
           collapsed={navCollapsed}
           onToggleCollapse={toggleNav}
+          onExport={handleExport}
+          onImport={handleImport}
         />
         <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
           <ThemeToggle className="absolute top-[16px] right-[20px] z-30" />
