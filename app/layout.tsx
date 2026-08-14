@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, Manrope, JetBrains_Mono } from "next/font/google";
+import { ServiceWorker } from "@/components/ServiceWorker";
 import "./globals.css";
 
 const display = Instrument_Serif({
@@ -26,6 +27,17 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "MoloTask — Gestionnaire de tâches",
   description: "Tableau kanban pour gérer tous types de tâches : travail, perso, projets, études.",
+  applicationName: "MoloTask",
+  appleWebApp: { capable: true, title: "MoloTask", statusBarStyle: "black-translucent" },
+};
+
+/* La couleur de barre suit le thème choisi : installée, l'application ne doit
+   pas se coiffer d'un bandeau sombre en thème clair. */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f5fa" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0b12" },
+  ],
 };
 
 // Applique le thème avant le premier rendu pour éviter le flash de couleur.
@@ -46,7 +58,10 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <ServiceWorker />
+      </body>
     </html>
   );
 }

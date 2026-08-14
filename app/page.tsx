@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ColumnDef, ColumnId, Task, TaskDraft, ViewId } from "@/lib/types";
+import type { ColumnDef, ColumnId, Task, TaskDraft, TaskTemplate, ViewId } from "@/lib/types";
 import {
   COLUMNS_KEY,
   DEFAULT_COLS,
   INBOX_COL,
   SIDEBAR_KEY,
   STORAGE_KEY,
+  TEMPLATES_KEY,
 } from "@/lib/constants";
 import { moveColumn, newColumnId, sanitizeColumns } from "@/lib/columns";
+import { deleteTemplate, sanitizeTemplates, templateFrom } from "@/lib/templates";
 import type { SortKey } from "@/lib/tasks";
 import {
   deleteTasks,
@@ -85,11 +87,15 @@ const CURSOR_KEYS: Record<string, CursorDir | undefined> = {
 interface UndoEntry extends UndoOffer {
   tasks: Task[];
   columns: ColumnDef[];
+  templates: TaskTemplate[];
 }
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>(SAMPLE_TASKS);
   const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLS);
+  /* Modèles de tâches. Vide au premier lancement : ils naissent d'une tâche
+     que l'utilisateur a lui-même saisie, pas d'une liste livrée d'avance. */
+  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -143,15 +149,15 @@ export default function HomePage() {
   /* Miroir de l'état courant : `offerUndo` a besoin de l'avant-action sans
      dépendre de `tasks` / `columns`, qui rendraient tous les gestionnaires
      instables à chaque frappe. */
-  const stateRef = useRef({ tasks, columns });
+  const stateRef = useRef({ tasks, columns, templates });
   useEffect(() => {
-    stateRef.current = { tasks, columns };
-  }, [tasks, columns]);
+    stateRef.current = { tasks, columns, templates };
+  }, [tasks, columns, templates]);
 
   /** Prend l'instantané d'avant l'action et propose de revenir dessus. */
   const offerUndo = useCallback((label: string) => {
-    const { tasks: t, columns: c } = stateRef.current;
-    setUndo({ id: Date.now(), label, tasks: t, columns: c });
+    const { tasks: t, columns: c, templates: m } = stateRef.current;
+    setUndo({ id: Date.now(), label, tasks: t, columns: c, templates: m });
   }, []);
 
   const dismissUndo = useCallback(() => setUndo(null), []);
@@ -160,6 +166,7 @@ export default function HomePage() {
     if (!undo) return;
     setTasks(undo.tasks);
     setColumns(undo.columns);
+    setTemplates(undo.templates);
     setUndo(null);
   }, [undo]);
 
@@ -169,6 +176,8 @@ export default function HomePage() {
       if (s) setTasks(sanitizeTasks(JSON.parse(s)));
       const c = localStorage.getItem(COLUMNS_KEY);
       if (c) setColumns(sanitizeColumns(JSON.parse(c)));
+      const m = localStorage.getItem(TEMPLATES_KEY);
+      if (m) setTemplates(sanitizeTemplates(JSON.parse(m)));
       setNavCollapsed(localStorage.getItem(SIDEBAR_KEY) === "collapsed");
     } catch {}
     setToday(localDay());
@@ -226,6 +235,13 @@ export default function HomePage() {
       localStorage.setItem(COLUMNS_KEY, JSON.stringify(columns));
     } catch {}
   }, [columns, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates));
+    } catch {}
+  }, [templates, hydrated]);
 
   const openAdd = useCallback((colId: ColumnId = INBOX_COL) => {
     setEditing(null);
@@ -511,16 +527,41 @@ export default function HomePage() {
     [offerUndo, clearSelection],
   );
 
+  /* Un modèle n'est ni une tâche ni une liste : sa création n'a rien à
+     annuler, sa suppression se confirme comme celle d'une liste. */
+  const handleSaveTemplate = useCallback(
+    (name: string, fields: TaskTemplate["fields"]) => {
+      setTemplates((prev) => [...prev, templateFrom(name, fields)]);
+    },
+    [],
+  );
+
+  const handleDeleteTemplate = useCallback(
+    async (id: string) => {
+      const tpl = stateRef.current.templates.find((t) => t.id === id);
+      if (!tpl) return;
+      const ok = await ask({
+        title: `Supprimer le modèle « ${tpl.name} » ?`,
+        body: "Les tâches déjà créées à partir de ce modèle ne bougent pas.",
+        confirmLabel: "Supprimer",
+        tone: "danger",
+      });
+      if (!ok) return;
+      setTemplates((prev) => deleteTemplate(prev, id));
+    },
+    [ask],
+  );
+
   const handleExport = useCallback(() => {
-    const { tasks: t, columns: c } = stateRef.current;
-    downloadJson(backupFilename(), buildBackup(t, c));
+    const { tasks: t, columns: c, templates: m } = stateRef.current;
+    downloadJson(backupFilename(), buildBackup(t, c, m));
   }, []);
 
   /* L'import remplace tout : le bandeau d'annulation est le filet, on ne
      demande donc qu'une confirmation, avec le décompte de ce qui arrive. */
   const handleImport = useCallback(
     async (file: File) => {
-      let data: { tasks: Task[]; columns: ColumnDef[] };
+      let data: { tasks: Task[]; columns: ColumnDef[]; templates: TaskTemplate[] };
       try {
         data = parseBackup(await file.text());
       } catch (err) {
@@ -546,6 +587,7 @@ export default function HomePage() {
       offerUndo(`Sauvegarde importée (${data.tasks.length} tâches).`);
       setTasks(data.tasks);
       setColumns(data.columns);
+      setTemplates(data.templates);
     },
     [offerUndo, ask, notify],
   );
@@ -752,8 +794,11 @@ export default function HomePage() {
           editing={editing}
           columns={columns}
           defaultCol={defaultCol}
+          templates={templates}
           onClose={() => setModalOpen(false)}
           onSave={handleSave}
+          onSaveTemplate={handleSaveTemplate}
+          onDeleteTemplate={handleDeleteTemplate}
         />
 
         <ColumnModal

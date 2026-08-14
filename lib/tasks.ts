@@ -1,5 +1,5 @@
 import type { CategoryKey, ColumnId, Priority, Repeat, Step, Task } from "./types";
-import { CATEGORIES, DONE_COLS, INBOX_COL, REPEATS } from "./constants";
+import { CATEGORIES, DONE_COLS, INBOX_COL, PRIORITIES, REPEATS } from "./constants";
 
 /** Horodatage courant, en ISO 8601. */
 export function nowIso(): string {
@@ -147,8 +147,6 @@ export function withColumn(task: Task, toCol: ColumnId, at: string = nowIso()): 
     doneAt: nowDone ? task.doneAt || at : "",
   };
 }
-
-const PRIORITIES: Priority[] = ["high", "med", "low"];
 
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";

@@ -72,10 +72,13 @@ the Vercel GitHub integration, outside this workflow.
 
 ```
 app/
-  layout.tsx        # Root HTML, fonts, inline no-FOUC theme script
+  layout.tsx        # Root HTML, fonts, inline no-FOUC theme script, viewport themeColor
   page.tsx          # HomePage: tasks state, localStorage sync, view + modal state, shortcuts
+  manifest.ts       # PWA manifest (metadata route → /manifest.webmanifest)
   globals.css       # Theme variables (dark/light) + component classes
-  icon.svg          # Favicon
+  icon.svg          # Favicon, and the manifest's only icon
+public/
+  sw.js             # Service worker: shell precache, network-first navigations
 components/
   Sidebar.tsx       # Left nav (views + theme toggle + user card)
   ThemeToggle.tsx   # Clair / Sombre segmented control
@@ -87,6 +90,7 @@ components/
   TaskCard.tsx      # One task card (badges, title, desc, tags, estimate/spent bar, footer)
   TaskModal.tsx     # Create/edit task dialog (self-contained form state, focus trap)
   ColumnModal.tsx   # Create/rename list dialog (name, hint, tint swatches, live header preview)
+  ServiceWorker.tsx # Registers /sw.js in production + "new version" banner
   UndoToast.tsx     # "Annuler" banner shown after a destructive action
   ConfirmModal.tsx  # Themed confirm / notify dialog (replaces confirm() and alert())
   BulkBar.tsx       # Bulk actions on the current selection (move / tag / delete)
@@ -100,6 +104,7 @@ lib/
   constants.ts      # DEFAULT_COLS, COLUMN_TINTS, CAT_COLOR, CAT_LBL, CATEGORIES, TASK_TYPES, DONE_COLS, ACTIVE_COLS, keys
   columns.ts        # sanitizeColumns (storage migration), moveColumn, tintOf, newColumnId
   tasks.ts          # sanitizeTasks, withColumn, moveTask(s), sortColumn, bulk ops, timer + recurrence + cycle-time helpers
+  templates.ts      # TaskTemplate: sanitizeTemplates, templateFrom, applyTemplate
   backup.ts         # buildBackup, parseBackup, downloadJson (JSON export / import)
   filters.ts        # Filters, matchesTask, isOverdue / isDueToday, collectTags
   reminders.ts      # opt-in browser notifications for due tasks
@@ -136,8 +141,8 @@ them coherent — it stamps `movedAt` on any column change and clears `doneAt` w
 a done column, so a reopened task stops counting as finished.
 
 Persistence: `localStorage` key `molotask_tasks`, wired in `app/page.tsx` with two `useEffect`s
-(hydrate on mount, save on every change after hydration). The columns follow the same pattern
-under `molotask_columns`.
+(hydrate on mount, save on every change after hydration). The columns and the templates follow the
+same pattern under `molotask_columns` and `molotask_templates`.
 
 ### Columns (lists)
 
@@ -234,11 +239,53 @@ back in the column it came from. The clone resets `spent`, `startedAt`, `doneAt`
 retrospective, and unchecks its steps with fresh ids. Month/year shifts clamp to the end of the
 month, and the due date rolls forward past `today`.
 
+### Task templates
+
+A `TaskTemplate` (`lib/templates.ts`) is `{ id, name, fields }`, where `fields` holds only what
+repeats: title, desc, cat, type, prio, tags, steps, repeat, estimate. The due date, `spent`,
+`startedAt` and the retrospective belong to one occurrence — copying them would mint tasks that
+are already dated and already reviewed.
+
+`HomePage` owns `templates`, persisted under `molotask_templates` with the same pair of effects as
+the columns, and there is **no seed**: templates come from a task the user actually wrote.
+`TaskModal` shows them as chips **only when creating** — applying one while editing would
+overwrite what the user opened the dialog to change — and `applyTemplate` re-ids the steps and
+unchecks them, like the recurrence clone. Applying leaves `col` and `date` alone: the template
+says *what*, the dialog already said *where and when*.
+
+Saving goes the other way: the modal hands `HomePage` the raw `fields` and a name (falling back to
+the title), and `templateFrom` builds the template. Creating one is not undoable and needs no
+`UndoToast` — nothing is lost; deleting one asks through `useConfirm`, like deleting a list.
+
+Backups carry `templates` while staying at `BACKUP_VERSION = 1`: an added field that an older
+build ignores is cheaper than a version bump that would make that build refuse the file. A backup
+written before templates existed parses to `[]`.
+
+### Installable and offline (PWA)
+
+`app/manifest.ts` is a Next metadata route; the only icon is the existing `app/icon.svg`
+(`sizes: "any"`), so there is no PNG set to regenerate. `themeColor` is declared per color scheme
+in `layout.tsx` so the installed title bar follows the theme.
+
+`public/sw.js` is hand-written — the app is one page whose data already lives in `localStorage`,
+so there is nothing to sync, only a shell to keep. Navigations are network-first with a cache
+fallback (cache-first would serve a stale build on every visit); `/_next/static/` is cache-first,
+its names being hashed. Bumping `VERSION` drops every older cache on activation.
+
+`ServiceWorker.tsx` registers it **in production only** — in dev the worker would serve stale
+compiled chunks and the page would look frozen after each edit — and shows a banner when a new
+worker is waiting; accepting posts `skip-waiting`, and the `controllerchange` listener reloads
+once.
+
+Reminders are unchanged by this: a notification with the window closed needs Web Push, therefore a
+server (roadmap 16). The service worker does not buy that.
+
 ### Undo and backups
 
-Destructive actions snapshot `{ tasks, columns }` before mutating and offer `UndoToast` for
-7 seconds (also `Ctrl/⌘+Z`, ignored while a field has focus). The snapshot is read from a `useRef`
-mirror of the state so the handlers do not have to depend on `tasks` / `columns`.
+Destructive actions snapshot `{ tasks, columns, templates }` before mutating and offer `UndoToast`
+for 7 seconds (also `Ctrl/⌘+Z`, ignored while a field has focus). The snapshot is read from a
+`useRef` mirror of the state so the handlers do not have to depend on `tasks` / `columns` — and it
+covers the templates because an import replaces those too.
 
 Because deletion is reversible, deleting a task has **no** confirm dialog. Deleting a list keeps
 one, since it also relocates every task it holds.
@@ -251,14 +298,16 @@ supersedes it or the component unmounts, so no caller is left waiting forever. `
 a single `<ConfirmModal dialog={dialog} />` and its global key handler stands down while a dialog
 is open, otherwise Escape would also close the modal underneath.
 
-Export writes `molotask-YYYY-MM-DD.json` (`{ app, version, exportedAt, tasks, columns }`).
-Import treats the file as hostile: wrong `app` marker or a newer `version` is refused with a
-readable message, the payload goes through `sanitizeTasks` / `sanitizeColumns`, and the whole
-replacement is snapshotted for undo.
+Export writes `molotask-YYYY-MM-DD.json`
+(`{ app, version, exportedAt, tasks, columns, templates }`). Import treats the file as hostile:
+wrong `app` marker or a newer `version` is refused with a readable message, the payload goes
+through `sanitizeTasks` / `sanitizeColumns` / `sanitizeTemplates`, and the whole replacement is
+snapshotted for undo.
 
 ### State ownership
 
-- **`HomePage`** owns `tasks`, `columns`, `search`, `view`, and modal state. It passes handlers down.
+- **`HomePage`** owns `tasks`, `columns`, `templates`, `search`, `view`, and modal state. It passes
+  handlers down.
 - **`Board`** owns only the transient drag ID (`useRef`) and the mobile active list — not the
   dragged task's data.
 - **`TaskModal` / `ColumnModal`** own their own form state; each resets via `useEffect` whenever

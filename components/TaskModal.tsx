@@ -10,9 +10,19 @@ import type {
   Step,
   Task,
   TaskDraft,
+  TaskTemplate,
 } from "@/lib/types";
-import { CAT_LBL, CATEGORIES, DONE_COLS, REPEAT_LBL, REPEATS, TASK_TYPES } from "@/lib/constants";
+import {
+  CAT_COLOR,
+  CAT_LBL,
+  CATEGORIES,
+  DONE_COLS,
+  REPEAT_LBL,
+  REPEATS,
+  TASK_TYPES,
+} from "@/lib/constants";
 import { newStepId } from "@/lib/tasks";
+import { applyTemplate } from "@/lib/templates";
 import { useFocusTrap } from "@/lib/use-focus-trap";
 
 interface Props {
@@ -20,8 +30,12 @@ interface Props {
   editing: Task | null;
   columns: ColumnDef[];
   defaultCol: ColumnId;
+  templates: TaskTemplate[];
   onClose: () => void;
   onSave: (data: TaskDraft) => void;
+  /** `fields` sort du formulaire en cours ; `HomePage` fabrique le modèle. */
+  onSaveTemplate: (name: string, fields: TaskTemplate["fields"]) => void;
+  onDeleteTemplate: (id: string) => void;
 }
 
 interface FormState {
@@ -64,10 +78,23 @@ const PRIO_STYLE: Record<Priority, { tint: string; text: string; label: string }
   low:  { tint: "#14b8a6", text: "var(--ok)",   label: "Basse" },
 };
 
-export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave }: Props) {
+export function TaskModal({
+  open,
+  editing,
+  columns,
+  defaultCol,
+  templates,
+  onClose,
+  onSave,
+  onSaveTemplate,
+  onDeleteTemplate,
+}: Props) {
   const [form, setForm] = useState<FormState>(EMPTY(defaultCol));
   const [titleError, setTitleError] = useState(false);
+  /** Nom en cours de saisie, ou `null` tant qu'on n'enregistre pas de modèle. */
+  const [tplName, setTplName] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const tplRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,9 +120,14 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
       setForm(EMPTY(defaultCol));
     }
     setTitleError(false);
+    setTplName(null);
     const t = setTimeout(() => titleRef.current?.focus(), 80);
     return () => clearTimeout(t);
   }, [open, editing, defaultCol]);
+
+  useEffect(() => {
+    if (tplName !== null) tplRef.current?.focus();
+  }, [tplName]);
 
   useFocusTrap(open, dialogRef);
 
@@ -105,6 +137,51 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
     setForm((f) => ({ ...f, [key]: val }));
 
   const showRetro = DONE_COLS.includes(form.col);
+
+  /** Les champs que retient un modèle, tels qu'ils sont dans le formulaire. */
+  const templateFields = (): TaskTemplate["fields"] => ({
+    title: form.title.trim(),
+    desc: form.desc,
+    cat: form.cat,
+    type: form.type,
+    prio: form.prio,
+    tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+    steps: form.steps.filter((s) => s.label.trim()).map((s) => ({ ...s, done: false })),
+    repeat: form.repeat,
+    estimate: parseInt(form.estimate) || 0,
+  });
+
+  /* Appliquer un modèle ne touche ni à la liste ni à l'échéance déjà
+     choisies : elles répondent à « où et quand », le modèle à « quoi ». */
+  const fillFromTemplate = (tpl: TaskTemplate) => {
+    const draft = applyTemplate(tpl, form.col);
+    setForm((f) => ({
+      ...f,
+      title: draft.title,
+      desc: draft.desc,
+      cat: draft.cat,
+      type: draft.type,
+      prio: draft.prio,
+      tags: draft.tags.join(", "),
+      steps: draft.steps,
+      repeat: draft.repeat,
+      estimate: draft.estimate ? String(draft.estimate) : "",
+    }));
+    setTitleError(false);
+    titleRef.current?.focus();
+  };
+
+  const saveTemplate = () => {
+    const fields = templateFields();
+    const name = (tplName ?? "").trim() || fields.title;
+    if (!name) {
+      setTitleError(true);
+      titleRef.current?.focus();
+      return;
+    }
+    onSaveTemplate(name, fields);
+    setTplName(null);
+  };
 
   const handleSave = () => {
     const title = form.title.trim();
@@ -179,6 +256,47 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
           </button>
         </div>
 
+        {/* Modèles — seulement à la création : appliquer un modèle sur une
+            tâche existante écraserait ce qu'on est venu modifier. */}
+        {!editing && templates.length > 0 && (
+          <div className="px-[26px] pt-[16px]">
+            <div className="text-[10px] font-mono font-medium text-tm uppercase tracking-[1.2px] mb-[7px]">
+              Modèles
+            </div>
+            <div className="flex flex-wrap gap-[6px]">
+              {templates.map((t) => (
+                <span
+                  key={t.id}
+                  className="group flex items-center rounded-full border border-stroke1 bg-fill1 overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() => fillFromTemplate(t)}
+                    title={`Pré-remplir avec « ${t.name} »`}
+                    className="flex items-center gap-[7px] pl-[11px] pr-[8px] py-[6px] text-[11px] font-semibold text-t2 hover:text-t1 bg-transparent border-none cursor-pointer transition-colors"
+                  >
+                    <span
+                      aria-hidden
+                      className="w-[7px] h-[7px] rounded-full flex-shrink-0"
+                      style={{ background: CAT_COLOR[t.fields.cat] }}
+                    />
+                    {t.name}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteTemplate(t.id)}
+                    aria-label={`Supprimer le modèle « ${t.name} »`}
+                    title="Supprimer ce modèle"
+                    className="px-[8px] py-[6px] text-[10px] leading-none text-td hover:text-[color:var(--bad)] bg-transparent border-none cursor-pointer transition-colors"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="px-[26px] pt-[18px] pb-[24px] flex flex-col gap-[14px]">
           <Field label="Titre" htmlFor="f-title" required>
             <input
@@ -213,7 +331,7 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-[10px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]">
             <Field label="Catégorie" htmlFor="f-cat">
               <select
                 id="f-cat"
@@ -240,7 +358,7 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-[10px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]">
             <Field label="Liste" htmlFor="f-col">
               <select
                 id="f-col"
@@ -284,7 +402,7 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
             )}
           </Field>
 
-          <div className="grid grid-cols-2 gap-[10px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]">
             <Field label="Temps estimé (minutes)" htmlFor="f-est">
               <input
                 id="f-est"
@@ -393,7 +511,52 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
             </>
           )}
 
-          <div className="flex gap-2 justify-end pt-3 mt-1 border-t border-stroke1">
+          {tplName !== null && (
+            <div className="flex flex-wrap items-end gap-2 rounded-[11px] p-[12px] bg-fill1 border border-stroke1">
+              <div className="flex flex-col gap-[6px] flex-1 min-w-[180px]">
+                <label
+                  htmlFor="f-tpl"
+                  className="text-[10px] font-mono font-medium text-tm uppercase tracking-[1.2px]"
+                >
+                  Nom du modèle
+                </label>
+                <input
+                  id="f-tpl"
+                  ref={tplRef}
+                  value={tplName}
+                  onChange={(e) => setTplName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveTemplate()}
+                  placeholder={form.title.trim() || "Ex : réunion hebdomadaire"}
+                  className="input"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setTplName(null)}
+                className="btn-ghost px-4 py-[9px] rounded-[10px] text-[12px] font-semibold"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={saveTemplate}
+                className="btn-primary px-4 py-[9px] rounded-[10px] text-[12px] font-semibold"
+              >
+                Enregistrer le modèle
+              </button>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2 justify-end pt-3 mt-1 border-t border-stroke1">
+            <button
+              type="button"
+              onClick={() => setTplName("")}
+              disabled={tplName !== null}
+              title="Garder cette forme de tâche pour la réutiliser"
+              className="btn-ghost px-4 py-[9px] rounded-[10px] text-[12px] font-semibold mr-auto disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Enregistrer comme modèle
+            </button>
             <button
               onClick={onClose}
               className="btn-ghost px-5 py-[9px] rounded-[10px] text-[12px] font-semibold"

@@ -41,12 +41,17 @@ rétrospective. C'est ce couple *estimé / passé* qui alimente la vue Analytiqu
 |---|---|
 | **Tableau kanban** | glisser-déposer entre listes, défilement horizontal à la molette, auto-scroll près des bords pendant un glisser |
 | **Listes** | 7 listes fournies, plus les vôtres : ajout, renommage, teinte, déplacement, suppression (les tâches repartent dans « À trier ») |
-| **Tâches** | création et édition en modale, catégorie, type, priorité, échéance, tags, temps estimé |
-| **Recherche** | filtre instantané sur le titre, la description et les tags |
+| **Tâches** | création et édition en modale, catégorie, type, priorité, échéance, tags, checklist, temps estimé, chronomètre, récurrence |
+| **Modèles** | garder la forme d'une tâche qui revient et la réappliquer d'un clic à la création |
+| **Recherche et filtres** | filtre instantané sur le titre, la description et les tags ; panneau catégories / priorités / tags / retards |
+| **Actions groupées** | sélection multiple (case, `Ctrl`+clic, `Maj`+clic) puis déplacement, tag ou suppression du lot |
+| **Sauvegarde** | export / import JSON (tâches, listes et modèles), annulation sur 7 secondes après toute action destructrice |
 | **Dashboard** | flux des colonnes, prochaines échéances, retards, temps investi, répartition par catégorie |
 | **Calendrier** | grille mensuelle des échéances + détail du jour sélectionné |
 | **Analytiques** | temps passé, écart d'estimation, temps par mois et par catégorie, classement des tâches |
-| **Interface** | thème clair / sombre, menu latéral repliable, raccourcis clavier |
+| **Interface** | thème clair / sombre, menu latéral repliable, raccourcis clavier, tableau pilotable au clavier |
+| **Téléphone** | sous 768 px : menu en tiroir, une liste à la fois avec sélecteur, menu « Déplacer vers » sur la carte |
+| **Installable** | manifeste + service worker : MoloTask s'installe et s'ouvre hors ligne (les données sont déjà locales) |
 
 ## Démarrage
 
@@ -80,7 +85,12 @@ dans la CI sur Node 20 et 22, avec le lint, le typecheck et le build.
 |---|---|
 | `Ctrl` / `⌘` + `N` | Nouvelle tâche |
 | `Ctrl` / `⌘` + `B` | Replier / déplier le menu latéral |
-| `Échap` | Fermer la modale |
+| `Ctrl` / `⌘` + `Z` | Annuler la dernière action destructrice |
+| `j` `k` `h` `l` ou flèches | Déplacer le curseur de carte en carte |
+| `x` ou `Espace` | Cocher / décocher la carte courante |
+| `Entrée` · `Suppr` | Ouvrir · supprimer la carte courante |
+| `1` … `9` | Envoyer la carte (ou la sélection) dans la n-ième liste |
+| `Échap` | Fermer la modale, vider la sélection |
 | Molette sur le tableau | Défilement horizontal des colonnes |
 | `Maj` + molette | Défilement horizontal forcé |
 
@@ -97,20 +107,26 @@ dans la CI sur Node 20 et 22, avec le lint, le typecheck et le build.
 app/
   layout.tsx          # HTML racine, polices, script anti-FOUC du thème
   page.tsx            # état des tâches, persistance, vue active, raccourcis
+  manifest.ts         # manifeste d'installation (PWA)
   globals.css         # jetons de thème (clair / sombre) + classes composant
+public/
+  sw.js               # service worker : coquille en cache, app ouvrable hors ligne
 components/
-  Sidebar.tsx         # navigation repliable
+  Sidebar.tsx         # navigation repliable, tiroir sur téléphone
   ThemeToggle.tsx     # bascule clair / sombre (icône, en haut à droite)
-  TopBar.tsx          # titre, recherche, « Nouvelle tâche »
+  TopBar.tsx          # titre, recherche, filtres, « Nouvelle tâche »
   StatsBar.tsx        # cinq compteurs dérivés des tâches
   Board.tsx           # conteneur horizontal, drag & drop, défilement
+  ColumnTabs.tsx      # sélecteur de liste sur petit écran
   Column.tsx          # une liste du kanban (en-tête, menu ⋯, zone de dépôt)
   TaskCard.tsx        # une carte
-  TaskModal.tsx       # création / édition d'une tâche
+  TaskModal.tsx       # création / édition d'une tâche, modèles
   ColumnModal.tsx     # création / renommage d'une liste
+  ServiceWorker.tsx   # enregistrement du worker + bandeau de mise à jour
   Dashboard.tsx  CalendarView.tsx  AnalyticsView.tsx
 lib/
-  types.ts  constants.ts  columns.ts  utils.ts  use-theme.ts  sample-data.ts
+  types.ts  constants.ts  columns.ts  tasks.ts  templates.ts  backup.ts
+  filters.ts  reminders.ts  utils.ts  use-theme.ts  sample-data.ts
   __tests__/          # tests Vitest de la logique pure
 .github/
   workflows/ci.yml    # lint, typecheck, tests, build (Node 20 et 22)
@@ -127,8 +143,11 @@ Tout vit dans le navigateur — pas de serveur, pas de compte.
 |---|---|
 | `molotask_tasks` | la liste des tâches (JSON) |
 | `molotask_columns` | les listes du tableau : nom, indice, teinte, ordre (JSON) |
+| `molotask_templates` | les modèles de tâches (JSON) |
 | `molotask_theme` | `dark` ou `light` |
 | `molotask_sidebar` | `collapsed` ou `expanded` |
+| `molotask_reminders` | rappels d'échéance : `on` ou `off` |
+| `molotask_notified` | rappels déjà envoyés, un par tâche et par jour |
 
 Au premier lancement, le tableau est amorcé avec un jeu de tâches d'exemple
 (`lib/sample-data.ts`).
@@ -148,7 +167,11 @@ Captures et description écran par écran : **[docs/user-guide](docs/user-guide/
 
 ## Feuille de route
 
-- [ ] Réordonnancement des cartes à l'intérieur d'une colonne
-- [ ] Saisie du temps passé depuis la carte
-- [ ] Export / import JSON des tâches
-- [ ] Filtres par catégorie et par priorité
+Détail et état d'avancement : **[ROADMAP.md](ROADMAP.md)**. Les tiers 1 à 3 sont livrés
+(horodatages, export/import, ordre manuel, annulation, filtres, checklist, chronomètre,
+récurrence, rappels, sélection multiple, modales internes, clavier, responsive, modèles, PWA).
+
+Reste au programme :
+
+- [ ] Backend et authentification pour une synchronisation multi-appareils
+- [ ] Rappels hors session — ils dépendent du point précédent (Web Push demande un serveur)

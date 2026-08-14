@@ -13,8 +13,9 @@ définitivement perdu.
 >
 > **Tier 2 livré** sur `feat/tier-2-daily-use` (items 5 à 9).
 >
-> **Tier 3 en cours** sur `feat/tier-3-finition`, dans l'ordre 12 → 10 → 13 → 11. Restent les
-> modèles de tâches (14) et le PWA (15).
+> **Tier 3 livré** sur `feat/tier-3-finition`, dans l'ordre 12 → 10 → 13 → 11 → 14 → 15.
+> Reste le tier 4 : un backend (16), dont dépendent aussi les rappels hors session, et
+> l'élargissement des tests (17), déjà bien entamé.
 
 ---
 
@@ -113,7 +114,7 @@ session dépend du PWA (15) ou d'un serveur (16).
 
 ---
 
-## Tier 3 — Finition
+## Tier 3 — Finition ✅
 
 ### 10. Sélection multiple et actions groupées — fait
 Case au survol, `Ctrl/⌘+clic`, `Maj+clic` pour une plage (dans une seule colonne). `BulkBar`
@@ -136,11 +137,18 @@ Curseur de carte à tabulation mouvante : `j k h l` et les flèches naviguent, `
 ouvre, `Suppr` supprime, `1`–`9` envoient dans la n-ième liste (neuf, les listes étant des
 données). Tout passe par `nextCursor` (`lib/board-cursor.ts`), pur et testé.
 
-### 14. Modèles de tâches
-Pré-remplir catégorie, estimation et tags pour les tâches répétitives de même forme.
+### 14. Modèles de tâches — fait
+`TaskTemplate` (`lib/templates.ts`) retient ce qui se répète : titre, description, catégorie, type,
+priorité, tags, étapes, récurrence, estimation. Pas d'échéance ni de temps passé, qui appartiennent
+à une occurrence. « Enregistrer comme modèle » depuis la modale, pastilles à la création, étapes
+réattribuées et décochées. Stockés sous `molotask_templates` et embarqués dans l'export.
 
-### 15. PWA
-Installable et hors-ligne. Next 15 le gère proprement et le modèle `localStorage` s'y prête déjà.
+### 15. PWA — fait
+`app/manifest.ts` (icône = `app/icon.svg`, `sizes: "any"`) et `public/sw.js` écrit à la main :
+coquille précachée, navigations réseau-d'abord avec repli cache, `/_next/static/` en
+cache-d'abord, purge des caches au changement de `VERSION`. `ServiceWorker.tsx` n'enregistre qu'en
+production et propose la mise à jour quand un worker attend. **Limite inchangée** : un rappel
+fenêtre fermée demande Web Push, donc un serveur (16) — le service worker n'y suffit pas.
 
 ---
 
@@ -150,10 +158,13 @@ Installable et hors-ligne. Next 15 le gère proprement et le modèle `localStora
 Synchronisation multi-appareils (Supabase ou équivalent). Casse le modèle `localStorage` en
 place : à n'engager que si le besoin est réel et durable.
 
-### 17. Tests
-Aucun test pour l'instant. Playwright est déjà présent dans le projet (`.playwright/`).
-Couverture minimale visée :
+### 17. Tests — en partie fait
+Vitest couvre la logique de `lib/` (déplacements, tri, chronomètre, récurrence, relecture du
+stockage, import/export, filtres, curseur clavier, modèles) et quelques composants
+(`TaskCard`, `BulkBar`, `ColumnTabs`, modèles de `TaskModal`), et la CI en fait une étape
+bloquante. Restent hors couverture, faute de se rejouer honnêtement sous jsdom :
 
-- créer, déplacer, supprimer une tâche ;
-- persistance après rechargement ;
-- migration `sanitizeColumns` (entrées invalides, doublons, colonne verrouillée manquante).
+- le glisser-déposer, dont la géométrie dépend du rendu réel ;
+- le responsive et le service worker (mode avion, installation) ;
+- un parcours de bout en bout — créer, déplacer, recharger — qui appelle Playwright, déjà
+  présent dans le projet (`.playwright/`), plutôt que jsdom.
