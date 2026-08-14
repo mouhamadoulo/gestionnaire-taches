@@ -12,6 +12,16 @@ export function fmtNum(n: number): string {
   return String(n);
 }
 
+/** Jours → "aujourd'hui", "1 j", "12 j", "3,5 j". */
+export function fmtDays(d: number): string {
+  if (d < 0.5) return "moins d'un jour";
+  if (d < 10) {
+    const rounded = Math.round(d * 10) / 10;
+    return `${String(rounded).replace(".", ",")} j`;
+  }
+  return `${Math.round(d)} j`;
+}
+
 /** Minutes → "45min", "2h", "3h20". */
 export function fmtDuration(min: number): string {
   if (!min || min <= 0) return "—";

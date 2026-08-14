@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { ColumnDef, ColumnId, Task, ViewId } from "@/lib/types";
+import type { ColumnDef, ColumnId, Task, TaskDraft, ViewId } from "@/lib/types";
 import {
   COLUMNS_KEY,
   DEFAULT_COLS,
@@ -10,6 +10,7 @@ import {
   STORAGE_KEY,
 } from "@/lib/constants";
 import { moveColumn, newColumnId, sanitizeColumns } from "@/lib/columns";
+import { isDoneCol, nowIso, reassignColumn, sanitizeTasks, withColumn } from "@/lib/tasks";
 import { SAMPLE_TASKS } from "@/lib/sample-data";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
@@ -41,7 +42,7 @@ export default function HomePage() {
   useEffect(() => {
     try {
       const s = localStorage.getItem(STORAGE_KEY);
-      if (s) setTasks(JSON.parse(s));
+      if (s) setTasks(sanitizeTasks(JSON.parse(s)));
       const c = localStorage.getItem(COLUMNS_KEY);
       if (c) setColumns(sanitizeColumns(JSON.parse(c)));
       setNavCollapsed(localStorage.getItem(SIDEBAR_KEY) === "collapsed");
@@ -96,18 +97,32 @@ export default function HomePage() {
   }, []);
 
   const handleMove = useCallback((taskId: string, toCol: ColumnId) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId && t.col !== toCol ? { ...t, col: toCol } : t)),
-    );
+    const at = nowIso();
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? withColumn(t, toCol, at) : t)));
   }, []);
 
-  const handleSave = useCallback((data: Omit<Task, "id"> & { id?: string }) => {
+  const handleSave = useCallback((data: TaskDraft) => {
+    const at = nowIso();
     setTasks((prev) => {
       if (data.id) {
-        return prev.map((t) => (t.id === data.id ? { ...t, ...data, id: t.id } : t));
+        return prev.map((t) => {
+          if (t.id !== data.id) return t;
+          // Le formulaire peut changer la liste : on repasse par withColumn
+          // pour que movedAt / doneAt suivent, comme lors d'un glisser-déposer.
+          const { id: _id, ...fields } = data;
+          return withColumn({ ...t, ...fields, col: t.col }, data.col, at);
+        });
       }
-      const newTask: Task = { ...data, id: "t" + Date.now() };
-      return [...prev, newTask];
+      return [
+        ...prev,
+        {
+          ...data,
+          id: "t" + Date.now(),
+          createdAt: at,
+          movedAt: at,
+          doneAt: isDoneCol(data.col) ? at : "",
+        },
+      ];
     });
     setModalOpen(false);
   }, []);
@@ -156,7 +171,7 @@ export default function HomePage() {
           ? ""
           : `\n\n${n} tâche${n > 1 ? "s" : ""} y ${n > 1 ? "sont" : "est"} rangée${n > 1 ? "s" : ""} — elle${n > 1 ? "s" : ""} repartira${n > 1 ? "ont" : ""} dans « À trier ».`;
       if (!confirm(`Supprimer la liste « ${col.label} » ?${suite}`)) return;
-      setTasks((prev) => prev.map((t) => (t.col === colId ? { ...t, col: INBOX_COL } : t)));
+      setTasks((prev) => reassignColumn(prev, colId, INBOX_COL));
       setColumns((prev) => prev.filter((c) => c.id !== colId));
     },
     [columns, tasks],

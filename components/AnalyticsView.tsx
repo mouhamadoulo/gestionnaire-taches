@@ -3,7 +3,8 @@
 import { useMemo } from "react";
 import type { CategoryKey, Task } from "@/lib/types";
 import { CAT_COLOR, CAT_LBL, DONE_COLS } from "@/lib/constants";
-import { fmtDate, fmtDuration } from "@/lib/utils";
+import { closedSince, cycleTimeDays, medianCycleDays } from "@/lib/tasks";
+import { fmtDate, fmtDays, fmtDuration } from "@/lib/utils";
 
 interface Props {
   tasks: Task[];
@@ -34,6 +35,19 @@ export function AnalyticsView({ tasks, onEdit }: Props) {
     return Array.from(m.entries())
       .map(([k, v]) => ({ k, ...v }))
       .sort((a, b) => b.spent - a.spent);
+  }, [done]);
+
+  /* Rythme — repose sur les horodatages, absents des tâches créées avant leur
+     mise en place. On compte donc séparément celles qui ont un historique. */
+  const rhythm = useMemo(() => {
+    const tracked = done.filter((t) => cycleTimeDays(t) !== null);
+    return {
+      week: closedSince(done, 7).length,
+      month: closedSince(done, 30).length,
+      median: medianCycleDays(done),
+      tracked: tracked.length,
+      untracked: done.length - tracked.length,
+    };
   }, [done]);
 
   const monthly = useMemo(() => buildMonthly(done), [done]);
@@ -92,6 +106,52 @@ export function AnalyticsView({ tasks, onEdit }: Props) {
                 glyph="◐"
               />
             </div>
+
+            {/* Rythme — alimenté par les horodatages de clôture */}
+            <section className="panel rounded-[16px] p-5">
+              <div className="flex items-baseline gap-3 flex-wrap mb-4">
+                <span className="font-display italic text-t1 text-[20px] tracking-[-0.3px]">
+                  Rythme
+                </span>
+                <span className="font-mono text-[10px] uppercase tracking-[1.4px] text-tm">
+                  D&apos;après les dates de clôture
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <SmallStat
+                  label="7 derniers jours"
+                  value={String(rhythm.week)}
+                  sub={`tâche${rhythm.week > 1 ? "s" : ""} clôturée${rhythm.week > 1 ? "s" : ""}`}
+                  tint="#14b8a6"
+                />
+                <SmallStat
+                  label="30 derniers jours"
+                  value={String(rhythm.month)}
+                  sub={`tâche${rhythm.month > 1 ? "s" : ""} clôturée${rhythm.month > 1 ? "s" : ""}`}
+                  tint="#3b82f6"
+                />
+                <SmallStat
+                  label="Délai médian"
+                  value={rhythm.median === null ? "—" : fmtDays(rhythm.median)}
+                  sub={
+                    rhythm.median === null
+                      ? "pas encore d'historique"
+                      : `de la création à la clôture · ${rhythm.tracked} tâche${rhythm.tracked > 1 ? "s" : ""}`
+                  }
+                  tint="#8b5cf6"
+                />
+              </div>
+
+              {rhythm.untracked > 0 && (
+                <p className="text-tm text-[11px] mt-4 leading-[1.5]">
+                  {rhythm.untracked} tâche{rhythm.untracked > 1 ? "s" : ""} terminée
+                  {rhythm.untracked > 1 ? "s" : ""} sans historique de dates — créée
+                  {rhythm.untracked > 1 ? "s" : ""} avant le suivi, elle
+                  {rhythm.untracked > 1 ? "s ne comptent" : " ne compte"} pas dans le délai médian.
+                </p>
+              )}
+            </section>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
               {/* Temps par mois */}
@@ -284,6 +344,34 @@ function BigStat({
         {value}
       </div>
       <div className="text-t2 text-[12px] mt-2 relative">{sub}</div>
+    </div>
+  );
+}
+
+function SmallStat({
+  label,
+  value,
+  sub,
+  tint,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  tint: string;
+}) {
+  return (
+    <div
+      className="rounded-[12px] px-4 py-[14px]"
+      style={{ background: `${tint}12`, border: `1px solid ${tint}2e` }}
+    >
+      <div className="font-mono text-[9.5px] uppercase tracking-[1.4px] text-tm">{label}</div>
+      <div
+        className="font-display italic text-[30px] leading-none tracking-[-0.6px] mt-[6px] tabular-nums"
+        style={{ color: tint }}
+      >
+        {value}
+      </div>
+      <div className="text-t2 text-[11px] mt-[6px] leading-[1.45]">{sub}</div>
     </div>
   );
 }
