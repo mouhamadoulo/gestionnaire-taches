@@ -1,8 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CategoryKey, ColumnDef, ColumnId, Priority, Step, Task, TaskDraft } from "@/lib/types";
-import { CAT_LBL, CATEGORIES, DONE_COLS, TASK_TYPES } from "@/lib/constants";
+import type {
+  CategoryKey,
+  ColumnDef,
+  ColumnId,
+  Priority,
+  Repeat,
+  Step,
+  Task,
+  TaskDraft,
+} from "@/lib/types";
+import { CAT_LBL, CATEGORIES, DONE_COLS, REPEAT_LBL, REPEATS, TASK_TYPES } from "@/lib/constants";
 import { newStepId } from "@/lib/tasks";
 
 interface Props {
@@ -23,6 +32,7 @@ interface FormState {
   date: string;
   prio: Priority;
   tags: string;
+  repeat: Repeat;
   steps: Step[];
   estimate: string;
   spent: string;
@@ -39,6 +49,7 @@ const EMPTY = (col: ColumnId): FormState => ({
   date: "",
   prio: "med",
   tags: "",
+  repeat: "",
   steps: [],
   estimate: "",
   spent: "",
@@ -70,6 +81,7 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
         date: editing.date || "",
         prio: editing.prio,
         tags: (editing.tags || []).join(", "),
+        repeat: editing.repeat || "",
         steps: (editing.steps || []).map((s) => ({ ...s })),
         estimate: editing.estimate ? String(editing.estimate) : "",
         spent: editing.spent ? String(editing.spent) : "",
@@ -134,6 +146,7 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
       date: form.date,
       prio: form.prio,
       tags,
+      repeat: form.repeat,
       // Une étape sans libellé est une ligne que l'utilisateur a ouverte puis
       // laissée vide : on ne l'enregistre pas.
       steps: form.steps.filter((s) => s.label.trim()).map((s) => ({ ...s, label: s.label.trim() })),
@@ -270,6 +283,26 @@ export function TaskModal({ open, editing, columns, defaultCol, onClose, onSave 
               />
             </Field>
           </div>
+
+          <Field label="Répétition" htmlFor="f-repeat">
+            <select
+              id="f-repeat"
+              value={form.repeat}
+              onChange={(e) => update("repeat", e.target.value as Repeat)}
+              className="input"
+              aria-describedby={form.repeat ? "f-repeat-hint" : undefined}
+            >
+              {REPEATS.map((r) => (
+                <option key={r || "none"} value={r}>{REPEAT_LBL[r]}</option>
+              ))}
+            </select>
+            {form.repeat && (
+              <span id="f-repeat-hint" className="text-[11px] text-tm leading-[1.45]">
+                Une nouvelle occurrence sera créée dès que celle-ci passera en
+                terminé{form.date ? ", avec l'échéance décalée d'autant" : ""}.
+              </span>
+            )}
+          </Field>
 
           <div className="grid grid-cols-2 gap-[10px]">
             <Field label="Temps estimé (minutes)" htmlFor="f-est">

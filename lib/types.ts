@@ -18,6 +18,9 @@ export type CategoryKey =
 
 export type Priority = "high" | "med" | "low";
 
+/** Périodicité d'une tâche récurrente ; chaîne vide = tâche ponctuelle. */
+export type Repeat = "" | "daily" | "weekly" | "monthly" | "yearly";
+
 /** Une étape de la checklist d'une tâche. */
 export interface Step {
   id: string;
@@ -37,6 +40,8 @@ export interface Task {
   tags: string[];
   /** Découpage de la tâche ; liste vide quand elle n'en a pas besoin. */
   steps: Step[];
+  /** Périodicité : une nouvelle occurrence naît quand celle-ci est terminée. */
+  repeat: Repeat;
   /** Temps estimé, en minutes. */
   estimate: number;
   /** Temps réellement passé, en minutes (tâches terminées / archivées). */

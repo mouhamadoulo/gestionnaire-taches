@@ -1,4 +1,4 @@
-import type { CategoryKey, ColumnDef, ColumnId } from "./types";
+import type { CategoryKey, ColumnDef, ColumnId, Repeat } from "./types";
 
 /**
  * Colonnes livrées avec l'application. Elles servent de graine : dès la
@@ -69,6 +69,26 @@ export const TASK_TYPES = [
   "Rappel",
   "Note",
 ] as const;
+
+/** Périodicités proposées dans le formulaire. */
+export const REPEAT_LBL: Record<Repeat, string> = {
+  "":        "Ne se répète pas",
+  daily:     "Chaque jour",
+  weekly:    "Chaque semaine",
+  monthly:   "Chaque mois",
+  yearly:    "Chaque année",
+};
+
+/** Version courte, affichée sur la carte. */
+export const REPEAT_SHORT: Record<Repeat, string> = {
+  "":        "",
+  daily:     "quotidien",
+  weekly:    "hebdo",
+  monthly:   "mensuel",
+  yearly:    "annuel",
+};
+
+export const REPEATS = Object.keys(REPEAT_LBL) as Repeat[];
 
 /** Colonnes considérées comme terminées — rétrospective + temps passé. */
 export const DONE_COLS: ColumnId[] = ["done", "arch"];

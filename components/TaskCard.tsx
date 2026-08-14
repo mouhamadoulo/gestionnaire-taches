@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Task } from "@/lib/types";
-import { CAT_COLOR, CAT_LBL, DONE_COLS } from "@/lib/constants";
+import { CAT_COLOR, CAT_LBL, DONE_COLS, REPEAT_SHORT } from "@/lib/constants";
 import { isDueToday, isOverdue } from "@/lib/filters";
 import { elapsedMinutes, stepProgress } from "@/lib/tasks";
 import { fmtDate, fmtDuration } from "@/lib/utils";
@@ -104,6 +104,14 @@ export function TaskCard({
           <span className="chip uppercase tracking-[0.5px] !text-[9px] !font-semibold">
             {task.type}
           </span>
+          {task.repeat && (
+            <span
+              className="chip uppercase tracking-[0.5px] !text-[9px] !font-semibold"
+              title={`Se répète : ${REPEAT_SHORT[task.repeat]}`}
+            >
+              🔁 {REPEAT_SHORT[task.repeat]}
+            </span>
+          )}
         </div>
 
         {/* Titre */}

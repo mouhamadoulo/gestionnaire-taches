@@ -14,6 +14,7 @@ import type { SortKey } from "@/lib/tasks";
 import {
   isDoneCol,
   moveTask,
+  nextOccurrence,
   nowIso,
   reassignColumn,
   sanitizeTasks,
@@ -51,6 +52,32 @@ function localDay(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/**
+ * Insère l'occurrence suivante quand une tâche récurrente vient d'entrer dans
+ * une liste terminée.
+ *
+ * La nouvelle occurrence prend la place laissée par l'ancienne, pour réappa-
+ * raître là où l'utilisateur la cherchait — pas en bout de tableau.
+ */
+function withRecurrence(
+  tasks: Task[],
+  before: Task | undefined,
+  toCol: ColumnId,
+  at: string,
+  day: string,
+): Task[] {
+  if (!before || !before.repeat) return tasks;
+  if (!isDoneCol(toCol) || isDoneCol(before.col)) return tasks;
+
+  const clone = nextOccurrence(before, before.col, at, day);
+  if (!clone) return tasks;
+
+  const i = tasks.findIndex((t) => t.id === before.id);
+  const next = [...tasks];
+  next.splice(i === -1 ? next.length : i, 0, clone);
+  return next;
 }
 
 /** Instantané restauré par le bandeau « Annuler ». */
@@ -179,7 +206,11 @@ export default function HomePage() {
 
   const handleMove = useCallback((taskId: string, toCol: ColumnId, beforeId: string | null) => {
     const at = nowIso();
-    setTasks((prev) => moveTask(prev, taskId, toCol, beforeId, at));
+    const day = localDay();
+    setTasks((prev) => {
+      const before = prev.find((t) => t.id === taskId);
+      return withRecurrence(moveTask(prev, taskId, toCol, beforeId, at), before, toCol, at, day);
+    });
   }, []);
 
   /* Un seul chronomètre à la fois : démarrer une tâche arrête celle qui
@@ -209,15 +240,19 @@ export default function HomePage() {
 
   const handleSave = useCallback((data: TaskDraft) => {
     const at = nowIso();
+    const day = localDay();
     setTasks((prev) => {
       if (data.id) {
-        return prev.map((t) => {
-          if (t.id !== data.id) return t;
-          // Le formulaire peut changer la liste : on repasse par withColumn
-          // pour que movedAt / doneAt suivent, comme lors d'un glisser-déposer.
-          const { id: _id, ...fields } = data;
-          return withColumn({ ...t, ...fields, col: t.col }, data.col, at);
-        });
+        const before = prev.find((t) => t.id === data.id);
+        if (!before) return prev;
+        // Le formulaire peut changer la liste : on repasse par withColumn
+        // pour que movedAt / doneAt suivent, comme lors d'un glisser-déposer.
+        const { id: _id, ...fields } = data;
+        const merged = { ...before, ...fields, col: before.col };
+        const list = prev.map((t) => (t.id === data.id ? withColumn(merged, data.col, at) : t));
+        // `merged` porte la périodicité telle qu'elle vient d'être saisie :
+        // cocher « chaque semaine » et terminer d'un coup doit fonctionner.
+        return withRecurrence(list, merged, data.col, at, day);
       }
       return [
         ...prev,

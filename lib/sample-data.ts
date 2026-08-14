@@ -2,8 +2,12 @@ import type { Task } from "./types";
 import { isDoneCol } from "./tasks";
 
 /** Les horodatages du jeu d'exemple sont dérivés de l'échéance. */
-type SeedTask = Omit<Task, "createdAt" | "movedAt" | "doneAt" | "steps" | "startedAt"> & {
+type SeedTask = Omit<
+  Task,
+  "createdAt" | "movedAt" | "doneAt" | "steps" | "startedAt" | "repeat"
+> & {
   steps?: [string, boolean][];
+  repeat?: Task["repeat"];
 };
 
 /** Date de création par défaut des tâches d'exemple sans échéance. */
@@ -30,12 +34,14 @@ function seed(t: SeedTask): Task {
     label,
     done,
   }));
+  const repeat = t.repeat || "";
 
   if (isDoneCol(t.col) && t.date) {
     const doneAt = shift(t.date, 0, "17:30:00");
     return {
       ...t,
       steps,
+      repeat,
       startedAt: "",
       createdAt: shift(t.date, -14, "09:00:00"),
       movedAt: doneAt,
@@ -43,7 +49,7 @@ function seed(t: SeedTask): Task {
     };
   }
   const createdAt = t.date ? shift(t.date, -7, "09:00:00") : SEED_ORIGIN;
-  return { ...t, steps, startedAt: "", createdAt, movedAt: createdAt, doneAt: "" };
+  return { ...t, steps, repeat, startedAt: "", createdAt, movedAt: createdAt, doneAt: "" };
 }
 
 const SEED: SeedTask[] = [
@@ -61,7 +67,7 @@ const SEED: SeedTask[] = [
   { id: "t9",  col: "review", title: "Relire le contrat prestataire",              desc: "Vérifier clause de confidentialité et pénalités de retard avant signature.", cat: "travail", type: "Tâche",     prio: "high", date: "2026-08-15", tags: ["juridique", "contrat"],        estimate: 60,  spent: 0,   learning: "", notes: "" },
 
   { id: "t10", col: "sched",  title: "Bilan sanguin annuel",                       desc: "À jeun, laboratoire du centre, ordonnance dans le tiroir du bureau.",       cat: "sante",   type: "Rendez-vous", prio: "med",  date: "2026-08-25", tags: ["santé", "annuel"],             estimate: 45,  spent: 0,   learning: "", notes: "" },
-  { id: "t11", col: "sched",  title: "Point mensuel avec l'équipe design",         desc: "Ordre du jour : refonte du parcours d'inscription.",                       cat: "travail", type: "Réunion",     prio: "med",  date: "2026-08-28", tags: ["équipe", "design"],            estimate: 60,  spent: 0,   learning: "", notes: "" },
+  { id: "t11", col: "sched",  title: "Point mensuel avec l'équipe design",         desc: "Ordre du jour : refonte du parcours d'inscription.",                       cat: "travail", type: "Réunion",     prio: "med",  date: "2026-08-28", tags: ["équipe", "design"],            estimate: 60,  spent: 0,   learning: "", notes: "", repeat: "monthly" },
 
   { id: "t12", col: "done",   title: "Déclarer les revenus 2025",                  desc: "Déclaration en ligne, pièces jointes envoyées, accusé archivé.",            cat: "finance", type: "Tâche",       prio: "high", date: "2026-06-04", tags: ["impôts", "annuel"],            estimate: 120, spent: 195, learning: "Rassembler les justificatifs au fil de l'année plutôt qu'en une fois.", notes: "Bloqué 40 min sur un justificatif introuvable." },
   { id: "t13", col: "done",   title: "Mettre en place la sauvegarde automatique",  desc: "Rsync nocturne vers le disque externe + alerte mail en cas d'échec.",       cat: "projet",  type: "Tâche",       prio: "med",  date: "2026-07-12", tags: ["backup", "automatisation"],    estimate: 90,  spent: 75,  learning: "Tester la restauration, pas seulement la sauvegarde.", notes: "cron + rsync, 30 lignes de script." },

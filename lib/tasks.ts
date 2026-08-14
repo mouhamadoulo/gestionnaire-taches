@@ -1,5 +1,5 @@
-import type { CategoryKey, ColumnId, Priority, Step, Task } from "./types";
-import { CATEGORIES, DONE_COLS, INBOX_COL } from "./constants";
+import type { CategoryKey, ColumnId, Priority, Repeat, Step, Task } from "./types";
+import { CATEGORIES, DONE_COLS, INBOX_COL, REPEATS } from "./constants";
 
 /** Horodatage courant, en ISO 8601. */
 export function nowIso(): string {
@@ -9,6 +9,87 @@ export function nowIso(): string {
 /** Identifiant d'une étape de checklist. */
 export function newStepId(): string {
   return "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+/**
+ * Décale une date « AAAA-MM-JJ » d'une période.
+ *
+ * Le jour est ramené à la fin du mois quand il n'existe pas : un rappel du 31
+ * décalé d'un mois tombe le 28 ou 29 février, pas le 3 mars.
+ */
+export function shiftDate(date: string, repeat: Repeat): string {
+  if (!date || !repeat) return date;
+  const [y, m, d] = date.split("-").map(Number);
+  if (!y || !m || !d) return date;
+
+  let year = y;
+  let month = m;
+  let day = d;
+
+  if (repeat === "daily" || repeat === "weekly") {
+    const base = new Date(Date.UTC(y, m - 1, d));
+    base.setUTCDate(base.getUTCDate() + (repeat === "daily" ? 1 : 7));
+    return base.toISOString().slice(0, 10);
+  }
+  if (repeat === "monthly") {
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  } else {
+    year += 1;
+  }
+
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  day = Math.min(day, lastDay);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${year}-${p(month)}-${p(day)}`;
+}
+
+/**
+ * Occurrence suivante d'une tâche récurrente qu'on vient de terminer, ou
+ * `null` si la tâche ne se répète pas.
+ *
+ * `backTo` est la liste d'où elle vient : une tâche récurrente revient là où
+ * elle vivait, pas dans « À trier ». L'échéance avance jusqu'à dépasser
+ * `today` — terminer une tâche hebdomadaire avec trois semaines de retard ne
+ * doit pas replanifier une date elle aussi dépassée.
+ */
+export function nextOccurrence(
+  t: Task,
+  backTo: ColumnId,
+  at: string = nowIso(),
+  today = "",
+): Task | null {
+  if (!t.repeat) return null;
+
+  let date = t.date;
+  if (date) {
+    date = shiftDate(date, t.repeat);
+    // Garde-fou : une date illisible ferait tourner la boucle indéfiniment.
+    for (let i = 0; today && date <= today && i < 400; i++) {
+      const next = shiftDate(date, t.repeat);
+      if (next === date) break;
+      date = next;
+    }
+  }
+
+  return {
+    ...t,
+    id: "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    col: isDoneCol(backTo) ? INBOX_COL : backTo,
+    date,
+    spent: 0,
+    startedAt: "",
+    steps: (t.steps || []).map((s) => ({ ...s, id: newStepId(), done: false })),
+    // La rétrospective appartient à l'occurrence qu'on vient de clore.
+    learning: "",
+    notes: "",
+    createdAt: at,
+    movedAt: at,
+    doneAt: "",
+  };
 }
 
 /** Minutes écoulées depuis le démarrage du chronomètre, 0 s'il est à l'arrêt. */
@@ -140,6 +221,7 @@ export function sanitizeTasks(raw: unknown): Task[] {
       date: str(e.date),
       tags: Array.isArray(e.tags) ? e.tags.filter((t): t is string => typeof t === "string") : [],
       steps: steps(e.steps),
+      repeat: REPEATS.includes(e.repeat as Repeat) ? (e.repeat as Repeat) : "",
       estimate: num(e.estimate),
       spent: num(e.spent),
       // Un chronomètre laissé tourner sur une tâche terminée n'a pas de sens.
