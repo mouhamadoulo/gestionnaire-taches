@@ -46,14 +46,17 @@ components/
   TaskCard.tsx      # One task card (badges, title, desc, tags, estimate/spent bar, footer)
   TaskModal.tsx     # Create/edit task dialog (self-contained form state, focus trap)
   ColumnModal.tsx   # Create/rename list dialog (name, hint, tint swatches, live header preview)
+  UndoToast.tsx     # "Annuler" banner shown after a destructive action
   Dashboard.tsx     # Overview: flow ribbon, upcoming, overdue, category mix
   CalendarView.tsx  # Month grid + selected-day detail
   AnalyticsView.tsx # Time spent, estimation drift, ranking
   CursorAurora.tsx  # Cursor-following light (decorative)
 lib/
-  types.ts          # Task, ColumnId, CategoryKey, Priority, ColumnDef, ViewId, ThemeMode
+  types.ts          # Task, TaskDraft, ColumnId, CategoryKey, Priority, ColumnDef, ViewId, ThemeMode
   constants.ts      # DEFAULT_COLS, COLUMN_TINTS, CAT_COLOR, CAT_LBL, CATEGORIES, TASK_TYPES, DONE_COLS, ACTIVE_COLS, keys
   columns.ts        # sanitizeColumns (storage migration), moveColumn, tintOf, newColumnId
+  tasks.ts          # sanitizeTasks, withColumn, moveTask, sortColumn, cycle-time helpers
+  backup.ts         # buildBackup, parseBackup, downloadJson (JSON export / import)
   utils.ts          # fmtDate, fmtNum, fmtDuration
   use-theme.ts      # Reads/writes data-theme + localStorage
   sample-data.ts    # SAMPLE_TASKS (seed when localStorage is empty)
@@ -64,11 +67,21 @@ lib/
 ```ts
 interface Task {
   id, col, title, desc, cat,     // cat = category key (travail, perso, projet…)
-  type, prio, date, tags,
+  type, prio, date, tags,        // date = user-facing due date
   estimate, spent,               // minutes; spent is filled in on done/archived tasks
-  learning, notes                // retrospective, shown for done/archived tasks
+  learning, notes,               // retrospective, shown for done/archived tasks
+  createdAt, movedAt, doneAt     // ISO timestamps; "" means unknown
 }
 ```
+
+`TaskDraft` is what `TaskModal` emits: the editable fields plus an optional `id`. Timestamps are
+set by `HomePage`, never by the form.
+
+The three timestamps are **never invented**: a task stored before they existed keeps empty
+strings, and every consumer (`cycleTimeDays`, `medianCycleDays`, `closedSince`, the Analytics
+"Rythme" panel) skips those rather than guessing. `withColumn` is the single place that keeps
+them coherent — it stamps `movedAt` on any column change and clears `doneAt` when a task leaves
+a done column, so a reopened task stops counting as finished.
 
 Persistence: `localStorage` key `molotask_tasks`, wired in `app/page.tsx` with two `useEffect`s
 (hydrate on mount, save on every change after hydration). The columns follow the same pattern
@@ -94,6 +107,29 @@ The user can add, rename, recolor, reorder and delete them from the board.
   `DEFAULT_COLS`, and any missing locked column is reinserted at its original index.
 - Use `col.tint` where you have the `ColumnDef`, `tintOf(columns, task.col)` where you only have
   a task (it falls back to `FALLBACK_TINT` for an orphaned `col`).
+
+### Task order
+
+Display order **is** the order of the `tasks` array — there is no `order` field to keep in sync.
+A drop therefore has to splice at the right global index: `Column` computes an insertion point
+from the pointer against each card midpoint and passes a `beforeId` (`null` = end of list), and
+`moveTask` (`lib/tasks.ts`) removes the task then re-inserts it before that id. Dropping a card
+just before itself is a no-op. `sortColumn` reorders only the array slots one column already
+occupies, leaving every other list untouched.
+
+### Undo and backups
+
+Destructive actions snapshot `{ tasks, columns }` before mutating and offer `UndoToast` for
+7 seconds (also `Ctrl/⌘+Z`, ignored while a field has focus). The snapshot is read from a `useRef`
+mirror of the state so the handlers do not have to depend on `tasks` / `columns`.
+
+Because deletion is reversible, deleting a task has **no** confirm dialog. Deleting a list keeps
+one, since it also relocates every task it holds.
+
+Export writes `molotask-YYYY-MM-DD.json` (`{ app, version, exportedAt, tasks, columns }`).
+Import treats the file as hostile: wrong `app` marker or a newer `version` is refused with a
+readable message, the payload goes through `sanitizeTasks` / `sanitizeColumns`, and the whole
+replacement is snapshotted for undo.
 
 ### State ownership
 
