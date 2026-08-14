@@ -16,19 +16,39 @@ npm run build
 npm run start
 npm run lint       # ESLint (flat config, next/core-web-vitals + next/typescript)
 npm run typecheck  # tsc --noEmit
+npm test           # Vitest, une passe
+npm run test:watch # Vitest en continu
 ```
 
 > Do not run `npm run build` while `npm run dev` is running — the build overwrites `.next`
 > and the dev server then serves 404s for its JS chunks (page loads but is not interactive).
 > Restart the dev server after a build.
 
+### Tests
+
+Vitest, `environment: 'node'`, `TZ` forcé à UTC (`vitest.config.ts`). Les tests vivent dans
+`lib/__tests__/*.test.ts` — **pas** dans un dossier `tests/` à la racine, que `next lint`
+n'inspecterait pas. `lib/__tests__/factory.ts` fournit `task()`, une tâche complète et neutre à
+surcharger champ par champ.
+
+Ce qui est couvert : la logique pure de `lib/` (`tasks`, `columns`, `backup`, `filters`,
+`utils`). Les composants ne le sont pas — il n'y a ni jsdom ni testing-library dans le projet.
+`withRecurrence` n'est pas testable en l'état : il est défini dans `app/page.tsx` et non exporté.
+
+Écrire un test = fixer une décision déjà prise, pas décrire l'implémentation : `doneAt` effacé
+quand une tâche est rouverte, échéance récurrente qui roule au-delà de `today`, colonne
+structurelle réinsérée par `sanitizeColumns`, import refusé si le marqueur `app` ne colle pas.
+Les horodatages et `Date.now()` se passent en argument (`at`, `now`, `today`) — aucun test ne
+doit dépendre de l'heure réelle.
+
 ### CI
 
 `.github/workflows/ci.yml` runs on every push and PR to `main` (plus `workflow_dispatch`):
-`npm ci` → `npm run lint -- --max-warnings=0` → `npm run typecheck` → `npm run build`,
-on Node 20 and 22. **A warning fails the build**, so a new ESLint warning has to be fixed or the
-rule tuned in `eslint.config.mjs` — not left in place. There is no deploy job: the app is
-client-only (`localStorage`), so nothing is published from CI.
+`npm ci` → `npm run lint -- --max-warnings=0` → `npm run typecheck` → `npm test` →
+`npm run build`, on Node 20 and 22. **A warning fails the build**, so a new ESLint warning has to
+be fixed or the rule tuned in `eslint.config.mjs` — not left in place. There is no deploy job in
+Actions: the app is client-only (`localStorage`), and previews/production are already handled by
+the Vercel GitHub integration, outside this workflow.
 
 ## Architecture
 
