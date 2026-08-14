@@ -18,6 +18,8 @@ interface Props {
   onDelete: (id: string) => void;
   onToggleTimer: (id: string) => void;
   selected: Set<string>;
+  /** Identifiant de la carte sous le curseur clavier. */
+  cursor: string | null;
   onSelect: (id: string, range: boolean) => void;
   onMove: (taskId: string, toCol: ColumnId, beforeId: string | null) => void;
   onAddCol: () => void;
@@ -42,6 +44,7 @@ export function Board({
   onDelete,
   onToggleTimer,
   selected,
+  cursor,
   onSelect,
   onMove,
   onAddCol,
@@ -157,6 +160,7 @@ export function Board({
             onDelete={onDelete}
             onToggleTimer={onToggleTimer}
             selected={selected}
+            cursor={cursor}
             onSelect={onSelect}
             onDrop={handleDrop}
             onDragStart={handleDragStart}

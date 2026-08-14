@@ -59,6 +59,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { UndoToast, type UndoOffer } from "@/components/UndoToast";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { BulkBar } from "@/components/BulkBar";
+import { nextCursor, type CursorDir } from "@/lib/board-cursor";
 import { useConfirm } from "@/lib/use-confirm";
 
 /** Date locale du jour, « AAAA-MM-JJ » — même format que `Task.date`. */
@@ -67,6 +68,18 @@ function localDay(): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+
+/** Touches de navigation du tableau : vi et flèches, au choix. */
+const CURSOR_KEYS: Record<string, CursorDir | undefined> = {
+  j: "down",
+  ArrowDown: "down",
+  k: "up",
+  ArrowUp: "up",
+  h: "left",
+  ArrowLeft: "left",
+  l: "right",
+  ArrowRight: "right",
+};
 
 /** Instantané restauré par le bandeau « Annuler ». */
 interface UndoEntry extends UndoOffer {
@@ -81,6 +94,11 @@ export default function HomePage() {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [view, setView] = useState<ViewId>("board");
+  /* Les raccourcis d'une lettre n'ont de sens que sur le tableau. */
+  const viewRef = useRef<ViewId>(view);
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
   const [navCollapsed, setNavCollapsed] = useState(false);
 
   /* Date du jour au format « AAAA-MM-JJ », renseignée après hydratation : le
@@ -410,6 +428,19 @@ export default function HomePage() {
     });
   }, [visible]);
 
+  /* Curseur clavier : la carte « courante », distincte de la sélection. */
+  const [cursor, setCursor] = useState<string | null>(null);
+  const cursorRef = useRef<string | null>(null);
+  useEffect(() => {
+    cursorRef.current = cursor;
+  }, [cursor]);
+
+  /* Comme la sélection, le curseur ne survit pas à la disparition de sa tâche
+     — filtrée, supprimée ou importée par-dessus. */
+  useEffect(() => {
+    setCursor((prev) => (prev && visible.some((t) => t.id === prev) ? prev : null));
+  }, [visible]);
+
   /* Ancre des plages Maj+clic : la dernière carte cliquée. */
   const anchorRef = useRef<string | null>(null);
 
@@ -438,6 +469,7 @@ export default function HomePage() {
       return next;
     });
     anchorRef.current = id;
+    setCursor(id);
   }, []);
 
   /* Actions groupées. Pas de confirmation : comme pour une suppression
@@ -521,6 +553,10 @@ export default function HomePage() {
          annulerait une action qu'on n'a pas encore confirmée. */
       if (dialogOpen) return;
 
+      const el = e.target as HTMLElement | null;
+      const typing =
+        el?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el?.tagName || "");
+
       if (e.key === "Escape") {
         setModalOpen(false);
         setColModalOpen(false);
@@ -537,18 +573,75 @@ export default function HomePage() {
       // Ctrl/⌘+Z annule la dernière action, sauf pendant une saisie où la
       // touche appartient au champ.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-        const el = e.target as HTMLElement | null;
-        const typing =
-          el?.isContentEditable ||
-          ["INPUT", "TEXTAREA", "SELECT"].includes(el?.tagName || "");
         if (typing) return;
         e.preventDefault();
         applyUndo();
       }
+
+      /* Navigation au clavier : uniquement sur le tableau, hors saisie, et
+         sans modificateur — Ctrl+L appartient au navigateur, pas à nous. */
+      if (typing || modalOpen || colModalOpen || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (viewRef.current !== "board") return;
+
+      const dir = CURSOR_KEYS[e.key];
+      if (dir) {
+        e.preventDefault();
+        setCursor(nextCursor(visibleRef.current, stateRef.current.columns, cursorRef.current, dir));
+        return;
+      }
+
+      const at = cursorRef.current;
+      if (!at) return;
+
+      /* Le curseur fait partie du lot : l'action porte sur tout le lot, comme
+         pour un glisser-déposer. Sinon, sur la seule carte courante. */
+      const batch = selectedRef.current;
+      const targets = batch.size > 0 && batch.has(at) ? [...batch] : [at];
+
+      if (/^[1-9]$/.test(e.key)) {
+        const col = stateRef.current.columns[Number(e.key) - 1];
+        if (!col) return;
+        e.preventDefault();
+        if (targets.length > 1) handleBulkMove(col.id);
+        else handleMove(at, col.id, null);
+        return;
+      }
+
+      if (e.key === "x" || e.key === " ") {
+        e.preventDefault();
+        handleSelect(at, false);
+        return;
+      }
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        openEdit(at);
+        return;
+      }
+
+      if (e.key === "Delete") {
+        e.preventDefault();
+        if (targets.length > 1) handleBulkDelete();
+        else handleDelete(at);
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [openAdd, toggleNav, applyUndo, dialogOpen, clearSelection]);
+  }, [
+    openAdd,
+    toggleNav,
+    applyUndo,
+    dialogOpen,
+    clearSelection,
+    modalOpen,
+    colModalOpen,
+    handleSelect,
+    handleMove,
+    handleBulkMove,
+    handleBulkDelete,
+    handleDelete,
+    openEdit,
+  ]);
 
   return (
     <>
@@ -591,6 +684,7 @@ export default function HomePage() {
                 onDelete={handleDelete}
                 onToggleTimer={handleToggleTimer}
                 selected={selected}
+                cursor={cursor}
                 onSelect={handleSelect}
                 onMove={handleMove}
                 onAddCol={openAddCol}

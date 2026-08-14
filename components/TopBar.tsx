@@ -51,7 +51,9 @@ export function TopBar({
               {shown} tâche{shown > 1 ? "s" : ""} sur {total} affichée{shown > 1 ? "s" : ""}
             </span>
           ) : (
-            <>Glissez les cartes d&apos;une colonne à l&apos;autre · ⌘N ajouter · ⌘B menu</>
+            <>
+              j k h l naviguer · x cocher · 1-9 déplacer · ⌘N ajouter · ⌘B menu
+            </>
           )}
           {overdueCount > 0 && (
             <button

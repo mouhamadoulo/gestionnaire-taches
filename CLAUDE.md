@@ -103,6 +103,7 @@ lib/
   reminders.ts      # opt-in browser notifications for due tasks
   utils.ts          # fmtDate, fmtNum, fmtDuration
   use-theme.ts      # Reads/writes data-theme + localStorage
+  board-cursor.ts   # nextCursor: keyboard navigation between visible cards
   use-confirm.ts    # Promise-based ask() / notify() driving ConfirmModal
   use-focus-trap.ts # Keeps Tab inside an open dialog (shared by the 3 modals)
   sample-data.ts    # SAMPLE_TASKS (seed when localStorage is empty)
@@ -200,6 +201,25 @@ importing, which are not covered the same way.
 
 Completing a batch regenerates recurring tasks exactly as a one-by-one move would — that is why
 `withRecurrence` lives in `lib/tasks.ts` rather than in `app/page.tsx`.
+
+### Keyboard on the board
+
+`cursor: string | null` in `HomePage` is the *current* card — distinct from the selection. The
+board uses a **roving tabindex**: only the cursor card carries `tabIndex={0}`, so `Tab` has one
+stop for the whole board and `TaskCard` takes real DOM focus (`focus({ preventScroll: true })`
+then `scrollIntoView({ block: 'nearest' })`). A visual ring alone would leave screen readers
+behind.
+
+`j`/`k`/`h`/`l` and the arrows move it, `x` or `Space` toggles selection, `Enter` opens the card,
+`Delete` deletes, `1`–`9` send it to the *n*-th list — nine and not seven, because columns are
+data and there can be any number of them. Everything routes through `nextCursor`
+(`lib/board-cursor.ts`), which is pure and walks `visible`, so search and filters apply and the
+cursor is pruned like the selection when its task disappears. Nothing wraps around at the edges.
+
+Bare-letter shortcuts are gated three ways: not while typing (`INPUT`/`TEXTAREA`/`SELECT`/
+contentEditable), not while a modal or a `ConfirmModal` is open, and only on the board view
+(`viewRef`). `1`–`9` and `Delete` follow the same batch rule as a group drag: they act on the
+whole selection when the cursor belongs to it, on the single card otherwise.
 
 ### Timer and recurrence
 

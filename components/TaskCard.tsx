@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Task } from "@/lib/types";
 import { CAT_COLOR, CAT_LBL, DONE_COLS, REPEAT_SHORT } from "@/lib/constants";
 import { isDueToday, isOverdue } from "@/lib/filters";
@@ -15,6 +15,8 @@ interface Props {
   selected: boolean;
   /** Au moins une tâche est cochée : les cases restent visibles partout. */
   selectionActive: boolean;
+  /** Carte sous le curseur clavier : seule à être dans l'ordre de tabulation. */
+  cursor: boolean;
   /** `range` : Maj+clic, qui étend la sélection jusqu'à l'ancre. */
   onSelect: (id: string, range: boolean) => void;
   onEdit: (id: string) => void;
@@ -36,6 +38,7 @@ export function TaskCard({
   today,
   selected,
   selectionActive,
+  cursor,
   onSelect,
   onEdit,
   onDelete,
@@ -53,6 +56,17 @@ export function TaskCard({
     return () => clearInterval(t);
   }, [running]);
   const elapsed = running ? elapsedMinutes(task) : 0;
+
+  /* Le curseur clavier prend le focus réel : c'est ce qui le rend utilisable
+     au lecteur d'écran, et le tableau défile pour le garder en vue. */
+  const cardRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!cursor) return;
+    const el = cardRef.current;
+    if (!el || el.contains(document.activeElement)) return;
+    el.focus({ preventScroll: true });
+    el.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [cursor]);
 
   const catColor = CAT_COLOR[task.cat] || "#64748b";
   const catLabel = CAT_LBL[task.cat] || task.cat;
@@ -85,8 +99,13 @@ export function TaskCard({
 
   return (
     <article
+      ref={cardRef}
       draggable
       data-task-id={task.id}
+      /* Tabulation mouvante : une seule carte est dans l'ordre de tabulation,
+         la navigation fine se fait aux touches (j/k, flèches). Sans cela, Tab
+         traverserait les seize cartes du tableau une par une. */
+      tabIndex={cursor ? 0 : -1}
       /* L'état accessible est porté par la case à cocher ; `aria-selected`
          n'est pas valide sur un article. Cet attribut ne sert qu'au style. */
       data-selected={selected || undefined}

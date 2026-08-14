@@ -12,6 +12,7 @@ function setup(over: Partial<React.ComponentProps<typeof TaskCard>> = {}) {
     today: "2026-08-14",
     selected: false,
     selectionActive: false,
+    cursor: false,
     onSelect: vi.fn(),
     onEdit: vi.fn(),
     onDelete: vi.fn(),
@@ -20,8 +21,7 @@ function setup(over: Partial<React.ComponentProps<typeof TaskCard>> = {}) {
     onDragEnd: vi.fn(),
     ...over,
   };
-  render(<TaskCard {...props} />);
-  return props;
+  return { ...props, ...render(<TaskCard {...props} />) };
 }
 
 const box = () => screen.getByRole("checkbox", { name: /Sélectionner/ });
@@ -79,6 +79,21 @@ describe("TaskCard — sélection", () => {
 
     await user.click(screen.getByRole("article"));
     expect(props.onSelect).not.toHaveBeenCalled();
+  });
+
+  it("ne met que la carte courante dans l'ordre de tabulation", () => {
+    // Sans tabulation mouvante, Tab traverserait les seize cartes du tableau.
+    const { unmount } = setup({ cursor: false });
+    expect(screen.getByRole("article")).toHaveAttribute("tabindex", "-1");
+    unmount();
+
+    setup({ cursor: true });
+    expect(screen.getByRole("article")).toHaveAttribute("tabindex", "0");
+  });
+
+  it("prend le focus réel quand le curseur arrive sur elle", () => {
+    setup({ cursor: true });
+    expect(screen.getByRole("article")).toHaveFocus();
   });
 
   it("marque la carte sélectionnée", () => {

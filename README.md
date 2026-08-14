@@ -16,7 +16,7 @@
 
 </div>
 
-![Tableau des tâches MoloTask](docs/images/01-board-sombre.png)
+![Tableau des tâches MoloTask](docs/images/02-board-clair.png)
 
 ---
 
